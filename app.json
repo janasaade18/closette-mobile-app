@@ -8,7 +8,10 @@
     "scheme": "closettemobileapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Closette needs access to your camera for the Miroir feature."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.closettemobileapp"
+      "package": "com.anonymous.closettemobileapp",
+      "permissions": ["android.permission.CAMERA"]
     },
     "web": {
       "output": "static",
