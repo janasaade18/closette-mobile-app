@@ -1,5 +1,4 @@
-
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
@@ -12,6 +11,8 @@ export default function MiroirScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
 
   useEffect(() => {
+    console.log('Camera permission:', hasPermission);
+    
     if (!hasPermission) {
       requestPermission();
     }
@@ -20,7 +21,7 @@ export default function MiroirScreen() {
   if (!hasPermission) {
     return (
       <View style={styles.center}>
-        <Text>Camera permission is required.</Text>
+        <Text style={styles.text}>Requesting camera permission...</Text>
       </View>
     );
   }
@@ -28,7 +29,7 @@ export default function MiroirScreen() {
   if (device == null) {
     return (
       <View style={styles.center}>
-        <Text>Loading camera...</Text>
+        <Text style={styles.text}>Loading camera...</Text>
       </View>
     );
   }
@@ -49,11 +50,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
-
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  text: {
+    color: 'black',
+    fontSize: 18,
   },
 });
-```
