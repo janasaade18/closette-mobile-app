@@ -10,7 +10,8 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSCameraUsageDescription": "Closette needs access to your camera for the Miroir feature."
+        "NSCameraUsageDescription": "Closette needs access to your camera for the Miroir feature.",
+        "NSMotionUsageDescription": "Closette uses motion to detect when your foot is held steady in the outline."
       }
     },
     "android": {
