@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Colors } from '../../constants/theme';
 
 interface SignUpScreenProps {
   onComplete?: () => void;
@@ -51,7 +52,7 @@ export default function SignUpScreen({
         <TextInput
           style={styles.input}
           placeholder="Your email"
-          placeholderTextColor="#A0A0A0"
+         placeholderTextColor={Colors.light.textSecondary}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -66,7 +67,7 @@ export default function SignUpScreen({
         <TextInput
           style={styles.input}
           placeholder="Create a password"
-          placeholderTextColor="#A0A0A0"
+      placeholderTextColor={Colors.light.textSecondary}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -79,7 +80,7 @@ export default function SignUpScreen({
         <TextInput
           style={styles.input}
           placeholder="Confirm your password"
-          placeholderTextColor="#A0A0A0"
+          placeholderTextColor={Colors.light.textSecondary}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
@@ -111,11 +112,10 @@ export default function SignUpScreen({
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 24,
     paddingTop: 54,
   },
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 5,
-    color: '#111111',
+    color: Colors.light.text,
   },
 
   content: {
@@ -140,21 +140,21 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     fontWeight: '700',
-    color: '#111111',
+    color: Colors.light.text,
     marginBottom: 10,
   },
 
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#777777',
+    color: Colors.light.textSecondary,
     marginBottom: 30,
   },
 
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222222',
+    color: Colors.light.text,
     marginBottom: 10,
     marginTop: 18,
   },
@@ -162,25 +162,25 @@ const styles = StyleSheet.create({
   input: {
     height: 54,
     borderWidth: 1,
-    borderColor: '#E2E2E2',
+    borderColor: Colors.light.border,
     borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#111111',
-    backgroundColor: '#FAFAFA',
+    color: Colors.light.text,
+    backgroundColor: Colors.light.backgroundElement,
   },
 
   button: {
     height: 56,
     borderRadius: 14,
-    backgroundColor: '#111111',
+    backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 30,
   },
 
   buttonText: {
-    color: '#FFFFFF',
+    color: Colors.light.background,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -194,11 +194,11 @@ const styles = StyleSheet.create({
 
   signInText: {
     fontSize: 14,
-    color: '#888888',
+    color: Colors.light.textSecondary,
   },
 
   signInBold: {
-    color: '#111111',
+    color: Colors.light.text,
     fontWeight: '600',
   },
 });

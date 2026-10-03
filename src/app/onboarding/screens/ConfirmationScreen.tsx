@@ -6,6 +6,7 @@ import {
     View,
 } from 'react-native';
 
+import { Colors } from '../../../constants/theme';
 import OnboardingHeader from '../../../onboarding/components/OnboardingHeader';
 import { useOnboarding } from '../../../onboarding/OnboardingContext';
 
@@ -47,7 +48,7 @@ export default function ConfirmationScreen({
               About you
             </Text>
 
-            <TouchableOpacity onPress={() => onEdit(1)}>
+            <TouchableOpacity onPress={() => onEdit(2)}>
               <Text style={styles.editText}>
                 Edit
               </Text>
@@ -104,7 +105,7 @@ export default function ConfirmationScreen({
               Style
             </Text>
 
-            <TouchableOpacity onPress={() => onEdit(2)}>
+            <TouchableOpacity onPress={() => onEdit(3)}>
               <Text style={styles.editText}>
                 Edit
               </Text>
@@ -137,7 +138,7 @@ export default function ConfirmationScreen({
               Occasions
             </Text>
 
-            <TouchableOpacity onPress={() => onEdit(3)}>
+            <TouchableOpacity onPress={() => onEdit(4)}>
               <Text style={styles.editText}>
                 Edit
               </Text>
@@ -166,11 +167,10 @@ export default function ConfirmationScreen({
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 24,
     paddingTop: 54,
   },
@@ -197,25 +197,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111111',
+    color: Colors.light.text,
   },
 
   editText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666666',
+    color: Colors.light.textSecondary,
   },
 
   card: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: Colors.light.border,
     borderRadius: 14,
     padding: 16,
+    backgroundColor: Colors.light.backgroundElement,
   },
 
   label: {
     fontSize: 13,
-    color: '#888888',
+    color: Colors.light.textSecondary,
     marginBottom: 4,
     marginTop: 8,
   },
@@ -223,13 +224,13 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#222222',
+    color: Colors.light.text,
   },
 
   button: {
     height: 54,
     borderRadius: 14,
-    backgroundColor: '#000000',
+    backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 12,
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: '#FFFFFF',
+    color: Colors.light.background,
     fontSize: 16,
     fontWeight: '600',
   },

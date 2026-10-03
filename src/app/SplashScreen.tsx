@@ -7,6 +7,7 @@ import Animated, {
     useSharedValue,
     withTiming
 } from 'react-native-reanimated';
+import { Colors } from '../constants/theme';
 
 interface SplashScreenProps {
   onFinish: () => void;
@@ -63,11 +64,10 @@ export default function SplashScreen({
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -80,13 +80,13 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 7,
-    color: '#111111',
+    color: Colors.light.text,
   },
 
   line: {
     width: 42,
     height: 1,
-    backgroundColor: '#111111',
+    backgroundColor: Colors.light.primary,
     marginTop: 18,
     marginBottom: 12,
   },
@@ -95,6 +95,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     letterSpacing: 3,
-    color: '#777777',
+    color: Colors.light.textSecondary,
   },
 });

@@ -6,6 +6,7 @@ import {
     View,
 } from 'react-native';
 
+import { Colors } from '../../../constants/theme';
 import OnboardingHeader from '../../../onboarding/components/OnboardingHeader';
 import PreferenceChip from '../../../onboarding/components/PreferenceChip';
 import PrimaryButton from '../../../onboarding/components/PrimaryButton';
@@ -139,11 +140,10 @@ export default function StylePreferencesScreen({
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 24,
     paddingTop: 54,
   },
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222222',
+    color: Colors.light.text,
     marginBottom: 12,
   },
 
@@ -172,6 +172,6 @@ const styles = StyleSheet.create({
 
   bottom: {
     paddingTop: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
   },
 });

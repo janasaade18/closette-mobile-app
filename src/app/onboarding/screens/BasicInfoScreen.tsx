@@ -7,6 +7,7 @@ import {
     View,
 } from 'react-native';
 
+import { Colors } from '../../../constants/theme';
 import OnboardingHeader from '../../../onboarding/components/OnboardingHeader';
 import PreferenceChip from '../../../onboarding/components/PreferenceChip';
 import PrimaryButton from '../../../onboarding/components/PrimaryButton';
@@ -66,7 +67,7 @@ export default function BasicInfoScreen({
         <TextInput
           style={styles.input}
           placeholder="Your name"
-          placeholderTextColor="#A0A0A0"
+          placeholderTextColor={Colors.light.textSecondary}
           value={name}
           onChangeText={setName}
         />
@@ -112,7 +113,7 @@ export default function BasicInfoScreen({
         <TextInput
           style={styles.input}
           placeholder="e.g. Lebanon"
-          placeholderTextColor="#A0A0A0"
+         placeholderTextColor={Colors.light.textSecondary}
           value={location}
           onChangeText={setLocation}
         />
@@ -145,11 +146,10 @@ export default function BasicInfoScreen({
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 24,
     paddingTop: 54,
   },
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222222',
+    color: Colors.light.text,
     marginBottom: 10,
     marginTop: 24,
   },
@@ -173,12 +173,12 @@ const styles = StyleSheet.create({
   input: {
     height: 54,
     borderWidth: 1,
-    borderColor: '#E2E2E2',
+    borderColor: Colors.light.border,
     borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#111111',
-    backgroundColor: '#FAFAFA',
+    color: Colors.light.text,
+    backgroundColor: Colors.light.backgroundElement,
   },
 
   options: {
@@ -189,6 +189,6 @@ const styles = StyleSheet.create({
 
   bottom: {
     paddingTop: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
   },
 });

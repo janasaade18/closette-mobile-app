@@ -5,6 +5,7 @@ import Animated, {
   FadeInDown,
   FadeInUp,
 } from 'react-native-reanimated';
+import { Colors } from '../constants/theme';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -79,7 +80,7 @@ export default function WelcomeScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 28,
     paddingTop: 58,
     paddingBottom: 28,
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 5,
-    color: '#111111',
+    color: Colors.light.text,
   },
 
   visualArea: {
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
     fontSize: 27,
     lineHeight: 34,
     fontWeight: '600',
-    color: '#111111',
+    color: Colors.light.text,
     textAlign: 'center',
     maxWidth: 330,
   },
@@ -132,13 +133,13 @@ const styles = StyleSheet.create({
   primaryButton: {
     height: 58,
     borderRadius: 16,
-    backgroundColor: '#111111',
+    backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   primaryText: {
-    color: '#FFFFFF',
+    color: Colors.light.background,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -151,11 +152,11 @@ const styles = StyleSheet.create({
 
   signInText: {
     fontSize: 14,
-    color: '#888888',
+    color: Colors.light.textSecondary,
   },
 
   signInBold: {
-    color: '#111111',
+    color: Colors.light.text,
     fontWeight: '600',
   },
 });

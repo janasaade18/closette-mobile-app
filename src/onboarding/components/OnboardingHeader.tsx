@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { Colors } from '../../constants/theme';
 
 interface OnboardingHeaderProps {
   step: number;
@@ -53,27 +54,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 3,
-    color: '#111111',
+    color: Colors.light.text,
   },
 
   progress: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#888888',
+    color: Colors.light.textSecondary,
     letterSpacing: 1,
   },
 
   progressTrack: {
     height: 3,
     width: '100%',
-    backgroundColor: '#EEEEEE',
+    backgroundColor: Colors.light.border,
     borderRadius: 2,
     marginBottom: 30,
   },
 
   progressFill: {
     height: 3,
-    backgroundColor: '#111111',
+    backgroundColor: Colors.light.primary,
     borderRadius: 2,
   },
 
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
     fontSize: 27,
     lineHeight: 32,
     fontWeight: '700',
-    color: '#111111',
+    color: Colors.light.text,
     marginBottom: 26,
   },
 });

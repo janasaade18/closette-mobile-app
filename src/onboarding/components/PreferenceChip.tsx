@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Colors } from '../../constants/theme';
 
 interface PreferenceChipProps {
   label: string;
@@ -35,23 +36,23 @@ export default function PreferenceChip({
 const styles = StyleSheet.create({
   container: {
     borderWidth: 1,
-    borderColor: '#DDDDDD',
+    borderColor: Colors.light.border,
     borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
 
   selectedContainer: {
-    backgroundColor: '#000000',
-    borderColor: '#000000',
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
   },
 
   text: {
     fontSize: 14,
-    color: '#333333',
+    color: Colors.light.text,
   },
 
   selectedText: {
-    color: '#FFFFFF',
+    color: Colors.light.background,
   },
 });
