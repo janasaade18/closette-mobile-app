@@ -49,27 +49,31 @@ export default function BasicInfoScreen({
 
   return (
     <View style={styles.container}>
+      <OnboardingHeader
+        step={1}
+        title="Tell us a little about you"
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <OnboardingHeader
-          step="01 / 04"
-          title="Tell us a little about you"
-          subtitle="This helps us personalize your wardrobe recommendations."
-        />
-
-        <Text style={styles.label}>Name or nickname</Text>
+        <Text style={styles.label}>
+          Name or nickname
+        </Text>
 
         <TextInput
           style={styles.input}
           placeholder="Your name"
+          placeholderTextColor="#A0A0A0"
           value={name}
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>Age range</Text>
+        <Text style={styles.label}>
+          Age range
+        </Text>
 
         <View style={styles.options}>
           {['Under 18', '18–24', '25–34', '35+'].map(
@@ -84,7 +88,9 @@ export default function BasicInfoScreen({
           )}
         </View>
 
-        <Text style={styles.label}>Gender</Text>
+        <Text style={styles.label}>
+          Gender
+        </Text>
 
         <View style={styles.options}>
           {['Female', 'Male', 'Prefer not to say'].map(
@@ -99,35 +105,43 @@ export default function BasicInfoScreen({
           )}
         </View>
 
-        <Text style={styles.label}>Country / location</Text>
+        <Text style={styles.label}>
+          Country / location
+        </Text>
 
         <TextInput
           style={styles.input}
           placeholder="e.g. Lebanon"
+          placeholderTextColor="#A0A0A0"
           value={location}
           onChangeText={setLocation}
         />
 
-        <Text style={styles.label}>Measuring units</Text>
+        <Text style={styles.label}>
+          Measuring units
+        </Text>
 
         <View style={styles.options}>
-          {['Metric (cm / kg)', 'Imperial (in / lb)'].map(
-            (option) => (
-              <PreferenceChip
-                key={option}
-                label={option}
-                selected={preferredUnits === option}
-                onPress={() => setPreferredUnits(option)}
-              />
-            )
-          )}
+          {[
+            'Metric (cm / kg)',
+            'Imperial (in / lb)',
+          ].map((option) => (
+            <PreferenceChip
+              key={option}
+              label={option}
+              selected={preferredUnits === option}
+              onPress={() => setPreferredUnits(option)}
+            />
+          ))}
         </View>
       </ScrollView>
 
-      <PrimaryButton
-        title="Continue"
-        onPress={handleContinue}
-      />
+      <View style={styles.bottom}>
+        <PrimaryButton
+          title="Continue"
+          onPress={handleContinue}
+        />
+      </View>
     </View>
   );
 }
@@ -136,7 +150,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 54,
   },
 
   scrollView: {
@@ -148,24 +163,32 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
+    color: '#222222',
     marginBottom: 10,
-    marginTop: 18,
+    marginTop: 24,
   },
 
   input: {
-    height: 50,
+    height: 54,
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    borderRadius: 12,
-    paddingHorizontal: 15,
+    borderColor: '#E2E2E2',
+    borderRadius: 14,
+    paddingHorizontal: 16,
     fontSize: 16,
+    color: '#111111',
+    backgroundColor: '#FAFAFA',
   },
 
   options: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+  },
+
+  bottom: {
+    paddingTop: 12,
+    backgroundColor: '#FFFFFF',
   },
 });
