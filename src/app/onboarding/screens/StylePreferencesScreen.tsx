@@ -77,18 +77,19 @@ export default function StylePreferencesScreen({
 
   return (
     <View style={styles.container}>
+      <OnboardingHeader
+        step={2}
+        title="What's your style?"
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <OnboardingHeader
-          step="02 / 04"
-          title="What's your style?"
-          subtitle="Tell us what you like so we can personalize your recommendations."
-        />
-
-        <Text style={styles.sectionTitle}>Your style</Text>
+        <Text style={styles.sectionTitle}>
+          Your style
+        </Text>
 
         <View style={styles.options}>
           {stylesList.map((style) => (
@@ -107,7 +108,9 @@ export default function StylePreferencesScreen({
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Favorite colors</Text>
+        <Text style={styles.sectionTitle}>
+          Favorite colors
+        </Text>
 
         <View style={styles.options}>
           {colors.map((color) => (
@@ -127,10 +130,12 @@ export default function StylePreferencesScreen({
         </View>
       </ScrollView>
 
-      <PrimaryButton
-        title="Continue"
-        onPress={handleContinue}
-      />
+      <View style={styles.bottom}>
+        <PrimaryButton
+          title="Continue"
+          onPress={handleContinue}
+        />
+      </View>
     </View>
   );
 }
@@ -139,7 +144,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 54,
   },
 
   scrollView: {
@@ -151,15 +157,21 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: 20,
-    marginBottom: 10,
+    color: '#222222',
+    marginBottom: 12,
   },
 
   options: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    marginBottom: 10,
+  },
+
+  bottom: {
+    paddingTop: 12,
+    backgroundColor: '#FFFFFF',
   },
 });

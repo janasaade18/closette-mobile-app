@@ -6,6 +6,7 @@ import {
     View,
 } from 'react-native';
 
+import OnboardingHeader from '../../../onboarding/components/OnboardingHeader';
 import { useOnboarding } from '../../../onboarding/OnboardingContext';
 
 interface ConfirmationScreenProps {
@@ -29,50 +30,67 @@ export default function ConfirmationScreen({
 
   return (
     <View style={styles.container}>
+      <OnboardingHeader
+        step={4}
+        title="Your preferences"
+      />
+
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <Text style={styles.step}>04 / 04</Text>
-
-        <Text style={styles.title}>Your preferences</Text>
-
-        <Text style={styles.subtitle}>
-          Take a quick look before we personalize your Closette experience.
-        </Text>
-
         {/* About You */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>About you</Text>
+            <Text style={styles.sectionTitle}>
+              About you
+            </Text>
 
             <TouchableOpacity onPress={() => onEdit(1)}>
-              <Text style={styles.editText}>Edit</Text>
+              <Text style={styles.editText}>
+                Edit
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.label}>Name</Text>
+            <Text style={styles.label}>
+              Name
+            </Text>
+
             <Text style={styles.value}>
               {preferences.name || 'Not provided'}
             </Text>
 
-            <Text style={styles.label}>Age range</Text>
+            <Text style={styles.label}>
+              Age range
+            </Text>
+
             <Text style={styles.value}>
               {preferences.ageRange || 'Not selected'}
             </Text>
 
-            <Text style={styles.label}>Gender</Text>
+            <Text style={styles.label}>
+              Gender
+            </Text>
+
             <Text style={styles.value}>
               {preferences.gender || 'Not selected'}
             </Text>
 
-            <Text style={styles.label}>Location</Text>
+            <Text style={styles.label}>
+              Location
+            </Text>
+
             <Text style={styles.value}>
               {preferences.location || 'Not provided'}
             </Text>
 
-            <Text style={styles.label}>Measuring units</Text>
+            <Text style={styles.label}>
+              Measuring units
+            </Text>
+
             <Text style={styles.value}>
               {preferences.preferredUnits || 'Not selected'}
             </Text>
@@ -82,20 +100,30 @@ export default function ConfirmationScreen({
         {/* Style Preferences */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Style</Text>
+            <Text style={styles.sectionTitle}>
+              Style
+            </Text>
 
             <TouchableOpacity onPress={() => onEdit(2)}>
-              <Text style={styles.editText}>Edit</Text>
+              <Text style={styles.editText}>
+                Edit
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.label}>Preferred styles</Text>
+            <Text style={styles.label}>
+              Preferred styles
+            </Text>
+
             <Text style={styles.value}>
               {renderList(preferences.preferredStyles)}
             </Text>
 
-            <Text style={styles.label}>Favorite colors</Text>
+            <Text style={styles.label}>
+              Favorite colors
+            </Text>
+
             <Text style={styles.value}>
               {renderList(preferences.preferredColors)}
             </Text>
@@ -105,16 +133,22 @@ export default function ConfirmationScreen({
         {/* Occasions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Occasions</Text>
+            <Text style={styles.sectionTitle}>
+              Occasions
+            </Text>
 
             <TouchableOpacity onPress={() => onEdit(3)}>
-              <Text style={styles.editText}>Edit</Text>
+              <Text style={styles.editText}>
+                Edit
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
             <Text style={styles.value}>
-              {renderList(preferences.commonOccasions)}
+              {renderList(
+                preferences.commonOccasions
+              )}
             </Text>
           </View>
         </View>
@@ -125,7 +159,9 @@ export default function ConfirmationScreen({
         onPress={onContinue}
         activeOpacity={0.8}
       >
-        <Text style={styles.buttonText}>Continue to Closette</Text>
+        <Text style={styles.buttonText}>
+          Continue to Closette
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -135,30 +171,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 54,
+  },
+
+  scrollView: {
+    flex: 1,
   },
 
   content: {
-    paddingBottom: 20,
-  },
-
-  step: {
-    fontSize: 13,
-    color: '#888888',
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#666666',
-    marginBottom: 28,
+    paddingBottom: 24,
   },
 
   section: {
@@ -175,6 +197,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#111111',
   },
 
   editText: {
