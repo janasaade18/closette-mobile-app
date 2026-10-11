@@ -1,39 +1,44 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { Colors } from '../../constants/theme';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Colors, Typeface } from '../../constants/theme';
 
 interface OnboardingHeaderProps {
   step: number;
-  title: string;
+  total?: number;
+  title?: string;
+  subtitle?: string;
+  onBack?: () => void;
 }
 
 export default function OnboardingHeader({
   step,
+  total = 5,
   title,
+  subtitle,
+  onBack,
 }: OnboardingHeaderProps) {
-  const progress = `${step} / 4`;
+  const progress = Math.min(1, Math.max(0, step / total));
 
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>CLOSETTE</Text>
-
-        <Text style={styles.progress}>
-          {progress}
+        <Pressable
+          onPress={onBack}
+          disabled={!onBack}
+          style={styles.back}
+          hitSlop={8}>
+          <Text style={styles.backIcon}>{onBack ? '‹' : ''}</Text>
+        </Pressable>
+        <View style={styles.track}>
+          <View style={[styles.fill, { flex: progress }]} />
+          <View style={{ flex: 1 - progress }} />
+        </View>
+        <Text style={styles.count}>
+          {step}/{total}
         </Text>
       </View>
-
-      <View style={styles.progressTrack}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${(step / 4) * 100}%` },
-          ]}
-        />
-      </View>
-
-      <Text style={styles.title}>
-        {title}
-      </Text>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }
@@ -41,48 +46,57 @@ export default function OnboardingHeader({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    marginBottom: 8,
   },
-
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    gap: 12,
+    marginBottom: 22,
   },
-
-  brand: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 3,
-    color: Colors.light.text,
+  back: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  progress: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.light.textSecondary,
-    letterSpacing: 1,
+  backIcon: {
+    fontSize: 28,
+    lineHeight: 28,
+    color: Colors.light.primary,
+    fontFamily: Typeface.displayMedium,
   },
-
-  progressTrack: {
-    height: 3,
-    width: '100%',
-    backgroundColor: Colors.light.border,
-    borderRadius: 2,
-    marginBottom: 30,
+  track: {
+    flex: 1,
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: Colors.light.bubble,
+    overflow: 'hidden',
   },
-
-  progressFill: {
-    height: 3,
+  fill: {
+    height: 6,
+    borderRadius: 99,
     backgroundColor: Colors.light.primary,
-    borderRadius: 2,
   },
-
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
+    marginBottom: 8,
+  },
+  count: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    fontFamily: Typeface.body,
+    minWidth: 28,
+    textAlign: 'right',
+  },
   title: {
-    fontSize: 27,
-    lineHeight: 32,
-    fontWeight: '700',
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: Typeface.display,
     color: Colors.light.text,
-    marginBottom: 26,
+    marginBottom: 8,
   },
 });

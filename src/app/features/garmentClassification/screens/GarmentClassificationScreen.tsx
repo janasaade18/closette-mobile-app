@@ -2,12 +2,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
+
+import { Colors, Typeface } from '@/constants/theme';
 
 type ClassificationResult = {
   category: string;
@@ -16,14 +18,19 @@ type ClassificationResult = {
   confidence: number;
 };
 
-export default function GarmentClassificationScreen() {
+interface GarmentClassificationScreenProps {
+  onBack?: () => void;
+}
+
+export default function GarmentClassificationScreen({
+  onBack,
+}: GarmentClassificationScreenProps) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ClassificationResult | null>(null);
 
   const takePhoto = async () => {
-    const permission =
-      await ImagePicker.requestCameraPermissionsAsync();
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
 
     if (!permission.granted) {
       return;
@@ -41,21 +48,20 @@ export default function GarmentClassificationScreen() {
   };
 
   const pickImage = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: 1,
     });
 
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+    if (!picked.canceled) {
+      setImageUri(picked.assets[0].uri);
       setResult(null);
     }
   };
@@ -82,217 +88,236 @@ export default function GarmentClassificationScreen() {
     }, 1500);
   };
 
- return (
-  <ScrollView
-    style={styles.container}
-    contentContainerStyle={styles.contentContainer}
-  >
-      <Text style={styles.title}>Garment Classification</Text>
+  const canSort = Boolean(imageUri) && !isAnalyzing;
 
-      <Text style={styles.subtitle}>
-        Take a photo or choose a garment from your gallery.
-      </Text>
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={takePhoto}
-        >
-          <Text style={styles.secondaryButtonText}>
-            Take Photo
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={pickImage}
-        >
-          <Text style={styles.secondaryButtonText}>
-            Gallery
-          </Text>
-        </TouchableOpacity>
+  return (
+    <View style={styles.screen}>
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={onBack}
+          disabled={!onBack}
+          hitSlop={8}
+          style={styles.back}>
+          <Text style={styles.backIcon}>{onBack ? '‹' : ''}</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.imageContainer}>
-        {imageUri ? (
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.image}
-            resizeMode="contain"
-          />
-        ) : (
-          <Text style={styles.placeholderText}>
-            Your garment photo will appear here
-          </Text>
-        )}
-      </View>
-
-      <TouchableOpacity
-        style={[
-          styles.analyzeButton,
-          !imageUri && styles.disabledButton,
-        ]}
-        onPress={analyzeGarment}
-        disabled={!imageUri || isAnalyzing}
-      >
-        <Text style={styles.analyzeButtonText}>
-          {isAnalyzing ? 'Analyzing...' : 'Analyze Garment'}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Add a piece</Text>
+        <Text style={styles.subtitle}>
+          Photograph it, or choose one from your gallery. Closette tags its type,
+          colour and vibe for you.
         </Text>
-      </TouchableOpacity>
 
-      {result && (
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultTitle}>Result</Text>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Category</Text>
-            <Text style={styles.resultValue}>
-              {result.category}
-            </Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Type</Text>
-            <Text style={styles.resultValue}>
-              {result.type}
-            </Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Garment</Text>
-            <Text style={styles.resultValue}>
-              {result.garment}
-            </Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Confidence</Text>
-            <Text style={styles.resultValue}>
-              {Math.round(result.confidence * 100)}%
-            </Text>
-          </View>
+        <View style={styles.actions}>
+          <Pressable style={styles.photoButton} onPress={takePhoto}>
+            <Text style={styles.photoButtonText}>Take photo</Text>
+          </Pressable>
+          <Pressable style={styles.galleryButton} onPress={pickImage}>
+            <Text style={styles.galleryButtonText}>Gallery</Text>
+          </Pressable>
         </View>
-      )}
-    
 
-   </ScrollView>
-);
+        <View style={styles.frame}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+          ) : (
+            <View style={styles.placeholder}>
+              <View style={styles.placeholderMark} />
+              <Text style={styles.placeholderText}>Your photo will show up here</Text>
+            </View>
+          )}
+        </View>
+
+        {result ? (
+          <View style={styles.resultCard}>
+            <Text style={styles.resultTitle}>{result.garment}</Text>
+            <Text style={styles.resultBody}>
+              {formatLabel(result.type)} · {formatLabel(result.category)}
+            </Text>
+            <View style={styles.confidence}>
+              <Text style={styles.confidenceText}>
+                {Math.round(result.confidence * 100)}% sure
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <Pressable
+        style={[styles.sortButton, !canSort && styles.sortButtonDisabled]}
+        onPress={analyzeGarment}
+        disabled={!canSort}>
+        <Text style={[styles.sortButtonText, !canSort && styles.sortButtonTextDisabled]}>
+          {isAnalyzing ? 'Sorting...' : 'Sort this piece'}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
+function formatLabel(value: string) {
+  const lower = value.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.canvas,
+    paddingHorizontal: 24,
+    paddingTop: 72,
   },
-
-  contentContainer: {
-  paddingBottom: 40,
-},
-
-  title: {
+  topBar: {
+    height: 36,
+    justifyContent: 'center',
+  },
+  back: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
     fontSize: 28,
-    fontWeight: '700',
-    marginTop: 40,
+    lineHeight: 28,
+    color: Colors.light.primary,
+    fontFamily: Typeface.displayMedium,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontFamily: Typeface.display,
+    color: Colors.light.text,
     marginBottom: 8,
   },
-
   subtitle: {
-    fontSize: 16,
-    color: '#666666',
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
     marginBottom: 20,
   },
-
-  buttonRow: {
+  actions: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
-
-  secondaryButton: {
+  photoButton: {
     flex: 1,
     height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: Colors.light.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  secondaryButtonText: {
+  photoButtonText: {
+    color: Colors.light.onPrimary,
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Typeface.display,
   },
-
-  imageContainer: {
-    width: '100%',
-    height: 360,
-    borderRadius: 16,
+  galleryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.light.backgroundElement,
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    overflow: 'hidden',
-    justifyContent: 'center',
+    borderColor: Colors.light.border,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-
+  galleryButtonText: {
+    color: Colors.light.primary,
+    fontSize: 15,
+    fontFamily: Typeface.displayMedium,
+  },
+  frame: {
+    height: 320,
+    borderRadius: 28,
+    backgroundColor: Colors.light.bubble,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   image: {
     width: '100%',
     height: '100%',
   },
-
-  placeholderText: {
-    color: '#888888',
-    fontSize: 16,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-
-  analyzeButton: {
-    marginTop: 20,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
+  placeholder: {
     alignItems: 'center',
+    paddingHorizontal: 28,
   },
-
-  disabledButton: {
-    backgroundColor: '#CCCCCC',
+  placeholderMark: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.light.sand,
+    marginBottom: 14,
   },
-
-  analyzeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  placeholderText: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
   },
-
-  resultContainer: {
-    marginTop: 24,
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
+  resultCard: {
+    marginTop: 16,
+    backgroundColor: Colors.light.backgroundElement,
+    borderRadius: 22,
+    padding: 18,
   },
-
   resultTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: Typeface.display,
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  resultBody: {
+    fontSize: 15,
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
+  },
+  confidence: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    backgroundColor: Colors.light.bubble,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  confidenceText: {
+    fontSize: 13,
+    fontFamily: Typeface.bodyStrong,
+    color: Colors.light.primary,
+  },
+  sortButton: {
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
     marginBottom: 16,
   },
-
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+  sortButtonDisabled: {
+    backgroundColor: Colors.light.bubble,
   },
-
-  resultLabel: {
-    fontSize: 15,
-    color: '#666666',
+  sortButtonText: {
+    color: Colors.light.onPrimary,
+    fontSize: 16,
+    fontFamily: Typeface.display,
   },
-
-  resultValue: {
-    fontSize: 15,
-    fontWeight: '600',
+  sortButtonTextDisabled: {
+    color: Colors.light.textSecondary,
   },
 });

@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Colors } from '../../constants/theme';
+import { Colors, Typeface } from '../../constants/theme';
 
 interface SignUpScreenProps {
   onComplete?: () => void;
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
 
   brand: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: Typeface.display,
     letterSpacing: 5,
     color: Colors.light.text,
   },
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     lineHeight: 34,
-    fontWeight: '700',
+    fontFamily: Typeface.display,
     color: Colors.light.text,
     marginBottom: 10,
   },
@@ -147,13 +147,14 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
+    fontFamily: Typeface.body,
     color: Colors.light.textSecondary,
     marginBottom: 30,
   },
 
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Typeface.body,
     color: Colors.light.text,
     marginBottom: 10,
     marginTop: 18,
@@ -166,13 +167,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 16,
+    fontFamily: Typeface.body,
     color: Colors.light.text,
     backgroundColor: Colors.light.backgroundElement,
   },
 
   button: {
     height: 56,
-    borderRadius: 14,
+    borderRadius: 28,
     backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -182,7 +184,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.light.background,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Typeface.display,
   },
 
   signInButton: {
@@ -194,11 +196,12 @@ const styles = StyleSheet.create({
 
   signInText: {
     fontSize: 14,
+    fontFamily: Typeface.body,
     color: Colors.light.textSecondary,
   },
 
   signInBold: {
     color: Colors.light.text,
-    fontWeight: '600',
+    fontFamily: Typeface.bodyStrong,
   },
 });

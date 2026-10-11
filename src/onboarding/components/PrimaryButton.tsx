@@ -1,39 +1,69 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Colors } from '../../constants/theme';
+
+import { Colors, Typeface } from '../../constants/theme';
 
 interface PrimaryButtonProps {
   title: string;
   onPress: () => void;
+  tone?: 'navy' | 'light' | 'outline';
 }
 
 export default function PrimaryButton({
   title,
   onPress,
+  tone = 'navy',
 }: PrimaryButtonProps) {
+  const light = tone === 'light';
+  const outline = tone === 'outline';
+
   return (
     <TouchableOpacity
-      style={styles.button}
+      style={[
+        styles.button,
+        light && styles.lightButton,
+        outline && styles.outlineButton,
+      ]}
       onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <Text style={styles.text}>{title}</Text>
+      activeOpacity={0.85}>
+      <Text
+        style={[
+          styles.text,
+          light && styles.lightText,
+          outline && styles.outlineText,
+        ]}>
+        {title}
+      </Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    height: 54,
-    borderRadius: 14,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
-
+  lightButton: {
+    backgroundColor: Colors.light.onPrimary,
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: Colors.light.outlineOnNavy,
+  },
   text: {
-    color: Colors.light.background,
+    color: Colors.light.onPrimary,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Typeface.display,
+  },
+  lightText: {
+    color: Colors.light.primary,
+  },
+  outlineText: {
+    color: Colors.light.onPrimary,
+    fontFamily: Typeface.displayMedium,
   },
 });

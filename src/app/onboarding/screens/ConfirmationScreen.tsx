@@ -6,7 +6,7 @@ import {
     View,
 } from 'react-native';
 
-import { Colors } from '../../../constants/theme';
+import { Colors, Typeface } from '../../../constants/theme';
 import OnboardingHeader from '../../../onboarding/components/OnboardingHeader';
 import { useOnboarding } from '../../../onboarding/OnboardingContext';
 
@@ -196,13 +196,13 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: Typeface.display,
     color: Colors.light.text,
   },
 
   editText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Typeface.bodyStrong,
     color: Colors.light.textSecondary,
   },
 
@@ -216,6 +216,7 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 13,
+    fontFamily: Typeface.body,
     color: Colors.light.textSecondary,
     marginBottom: 4,
     marginTop: 8,
@@ -224,6 +225,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 15,
     lineHeight: 22,
+    fontFamily: Typeface.body,
     color: Colors.light.text,
   },
 
@@ -240,6 +242,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.light.background,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Typeface.display,
   },
 });

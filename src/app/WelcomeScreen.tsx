@@ -1,11 +1,9 @@
-import LottieView from 'lottie-react-native';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-} from 'react-native-reanimated';
-import { Colors } from '../constants/theme';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { Colors, Typeface } from '../constants/theme';
+import HangerMark from '../onboarding/components/HangerMark';
+import PrimaryButton from '../onboarding/components/PrimaryButton';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -18,61 +16,30 @@ export default function WelcomeScreen({
 }: WelcomeScreenProps) {
   return (
     <View style={styles.container}>
-      <Animated.View
-        entering={FadeIn.duration(700)}
-        style={styles.header}
-      >
-        <Text style={styles.logo}>CLOSETTE</Text>
-      </Animated.View>
+      <StatusBar style="light" />
+      <View style={[styles.blob, styles.sand]} />
+      <View style={[styles.blob, styles.bubbleTop]} />
+      <View style={[styles.blob, styles.bubbleLeft]} />
+      <View style={[styles.blob, styles.bubbleBottom]} />
 
-      <View style={styles.visualArea}>
-        <Animated.View
-          entering={FadeIn.duration(900)}
-          style={styles.visual}
-        >
-          <LottieView
-  source={require('../../assets/animations/tshirt.json')}
-  autoPlay
-  loop={false}
-  style={styles.animation}
-/>
-        </Animated.View>
-
-        <Animated.Text
-          entering={FadeInDown.delay(400).duration(700)}
-          style={styles.title}
-        >
-          Make every look feel like you.
-        </Animated.Text>
+      <View style={styles.hero}>
+        <View style={styles.mark}>
+          <HangerMark color={Colors.light.primary} size={78} />
+        </View>
+        <Text style={styles.wordmark}>closette</Text>
+        <Text style={styles.tagline}>
+          Your whole closet, pocket-sized{'\n'}and ready to style.
+        </Text>
       </View>
 
-      <Animated.View
-        entering={FadeInUp.delay(500).duration(700)}
-        style={styles.actions}
-      >
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={onGetStarted}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryText}>
-            Get Started
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.signInButton}
+      <View style={styles.actions}>
+        <PrimaryButton title="Get started" onPress={onGetStarted} tone="light" />
+        <PrimaryButton
+          title="I already have an account"
           onPress={onSignIn}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.signInText}>
-            Already have an account?{' '}
-            <Text style={styles.signInBold}>
-              Sign In
-            </Text>
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+          tone="outline"
+        />
+      </View>
     </View>
   );
 }
@@ -80,83 +47,73 @@ export default function WelcomeScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.primary,
     paddingHorizontal: 28,
-    paddingTop: 58,
+    paddingTop: 72,
     paddingBottom: 28,
     justifyContent: 'space-between',
   },
-
-  header: {
-    alignItems: 'center',
+  blob: {
+    position: 'absolute',
+    borderRadius: 999,
   },
-
-  logo: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 5,
-    color: Colors.light.text,
+  sand: {
+    width: 54,
+    height: 54,
+    backgroundColor: Colors.light.sand,
+    top: '27%',
+    right: '22%',
   },
-
-  visualArea: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  bubbleTop: {
+    width: 180,
+    height: 180,
+    backgroundColor: Colors.light.navySoft,
+    top: -40,
+    right: -50,
+  },
+  bubbleLeft: {
+    width: 36,
+    height: 36,
+    backgroundColor: Colors.light.bubble,
+    opacity: 0.45,
+    top: '38%',
+    left: 36,
+  },
+  bubbleBottom: {
+    width: 150,
+    height: 150,
+    backgroundColor: Colors.light.navySoft,
+    bottom: 90,
+    left: -40,
+  },
+  hero: {
     flex: 1,
-  },
-
-  visual: {
-    width: 260,
-    height: 280,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
   },
-
-  animation: {
-    width: 260,
-    height: 260,
+  mark: {
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    backgroundColor: Colors.light.onPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
   },
-
-  title: {
-    fontSize: 27,
-    lineHeight: 34,
-    fontWeight: '600',
-    color: Colors.light.text,
+  wordmark: {
+    fontSize: 42,
+    fontFamily: Typeface.display,
+    color: Colors.light.onPrimary,
+    marginBottom: 12,
+  },
+  tagline: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontFamily: Typeface.body,
+    color: Colors.light.onPrimaryMuted,
     textAlign: 'center',
-    maxWidth: 330,
   },
-
   actions: {
     width: '100%',
-  },
-
-  primaryButton: {
-    height: 58,
-    borderRadius: 16,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  primaryText: {
-    color: Colors.light.background,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  signInButton: {
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  signInText: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-  },
-
-  signInBold: {
-    color: Colors.light.text,
-    fontWeight: '600',
   },
 });
