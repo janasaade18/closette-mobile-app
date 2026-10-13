@@ -9,44 +9,68 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    primary: '#12263F',
+    text: '#12263F',
+    background: '#F5F7FB',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#E7EEF6',
+    textSecondary: '#6E7C90',
+    border: '#E4E8EF',
+    onPrimary: '#FFFFFF',
+    sand: '#E7D5B8',
+    bubble: '#D7E2F0',
+    canvas: '#F5F7FB',
+    navySoft: '#1C3558',
+    onPrimaryMuted: '#D5DEEA',
+    outlineOnNavy: '#8EA0B8',
+    slate: '#7E93AB',
   },
+
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    primary: '#12263F',
+    text: '#F5F7FB',
+    background: '#0C1726',
+    backgroundElement: '#18283C',
+    backgroundSelected: '#24384F',
+    textSecondary: '#B7C3D1',
+    border: '#2C4158',
+    onPrimary: '#FFFFFF',
+    sand: '#E7D5B8',
+    bubble: '#D7E2F0',
+    canvas: '#0C1726',
+    navySoft: '#1C3558',
+    onPrimaryMuted: '#D5DEEA',
+    outlineOnNavy: '#8EA0B8',
+    slate: '#7E93AB',
   },
 } as const;
-
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+
+/** Fredoka for display, Nunito for reading text. Both are the Google fonts in the onboarding designs. */
+export const Typeface = {
+  display: 'Fredoka_600SemiBold',
+  displayMedium: 'Fredoka_500Medium',
+  body: 'Nunito_600SemiBold',
+  bodyStrong: 'Nunito_700Bold',
+} as const;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    sans: Typeface.body,
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    rounded: Typeface.display,
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
+    sans: Typeface.body,
     serif: 'serif',
-    rounded: 'normal',
+    rounded: Typeface.display,
     mono: 'monospace',
   },
   web: {
-    sans: 'var(--font-display)',
+    sans: Typeface.body,
     serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
+    rounded: Typeface.display,
     mono: 'var(--font-mono)',
   },
 });

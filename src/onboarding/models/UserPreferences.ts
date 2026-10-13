@@ -9,4 +9,11 @@ export interface UserPreferences {
   preferredColors: string[];
   preferredClothing: string[];
   commonOccasions: string[];
+
+  heightCm?: string;
+  topSize?: string;
+  bottomSize?: string;
+  weatherAware?: boolean;
+  accentColor?: string;
+  photoUri?: string;
 }

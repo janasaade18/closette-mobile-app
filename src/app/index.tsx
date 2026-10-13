@@ -2,8 +2,13 @@ import { useState } from 'react';
 
 import SignInScreen from './auth/sign-in';
 import SignUpScreen from './auth/sign-up';
+import ClosetHomeScreen from './ClosetHomeScreen';
+import GarmentClassificationScreen from './features/garmentClassification/screens/GarmentClassificationScreen';
+import AccentScreen from './onboarding/screens/AccentScreen';
 import BasicInfoScreen from './onboarding/screens/BasicInfoScreen';
-import ConfirmationScreen from './onboarding/screens/ConfirmationScreen';
+import DoneScreen from './onboarding/screens/DoneScreen';
+import FitScreen from './onboarding/screens/FitScreen';
+import IntroCarouselScreen from './onboarding/screens/IntroCarouselScreen';
 import OccasionPreferencesScreen from './onboarding/screens/OccasionPreferencesScreen';
 import StylePreferencesScreen from './onboarding/screens/StylePreferencesScreen';
 import SplashScreen from './SplashScreen';
@@ -13,83 +18,71 @@ import { OnboardingProvider } from '../onboarding/OnboardingContext';
 
 export default function HomeScreen() {
   const [step, setStep] = useState(0);
-  const [isEditing, setIsEditing] = useState(false);
-
-  const editSection = (editStep: number) => {
-    setIsEditing(true);
-    setStep(editStep);
-  };
-
-  const finishSection = (nextStep: number) => {
-    if (isEditing) {
-      setIsEditing(false);
-      setStep(5);
-    } else {
-      setStep(nextStep);
-    }
-  };
 
   return (
     <OnboardingProvider>
-      {step === 0 && (
-        <SplashScreen
-          onFinish={() => setStep(1)}
-        />
-      )}
+      {step === 0 && <SplashScreen onFinish={() => setStep(1)} />}
 
       {step === 1 && (
         <WelcomeScreen
           onGetStarted={() => setStep(2)}
-          onSignIn={() => setStep(6)}
+          onSignIn={() => setStep(9)}
         />
       )}
 
       {step === 2 && (
-        <BasicInfoScreen
-          onContinue={() => finishSection(3)}
+        <IntroCarouselScreen
+          onBack={() => setStep(1)}
+          onDone={() => setStep(3)}
         />
       )}
 
       {step === 3 && (
-        <StylePreferencesScreen
-          onContinue={() => finishSection(4)}
+        <BasicInfoScreen
+          onBack={() => setStep(2)}
+          onContinue={() => setStep(4)}
         />
       )}
 
       {step === 4 && (
-        <OccasionPreferencesScreen
-          onContinue={() => finishSection(5)}
+        <StylePreferencesScreen
+          onBack={() => setStep(3)}
+          onContinue={() => setStep(5)}
         />
       )}
 
       {step === 5 && (
-        <ConfirmationScreen
-          onContinue={() => setStep(7)}
-          onEdit={editSection}
-        />
+        <FitScreen onBack={() => setStep(4)} onContinue={() => setStep(6)} />
       )}
 
       {step === 6 && (
-        <SignInScreen
-          onComplete={() => setStep(8)}
-          onSignUp={() => setStep(7)}
+        <OccasionPreferencesScreen
+          onBack={() => setStep(5)}
+          onContinue={() => setStep(7)}
         />
       )}
 
       {step === 7 && (
-        <SignUpScreen
-          onComplete={() => setStep(8)}
-          onSignIn={() => setStep(6)}
-        />
+        <AccentScreen onBack={() => setStep(6)} onContinue={() => setStep(8)} />
       )}
 
-      {step === 8 && (
-        <HomeScreenContent />
+      {step === 8 && <DoneScreen onOpenCloset={() => setStep(11)} />}
+
+      {step === 9 && (
+        <SignInScreen onComplete={() => setStep(11)} onSignUp={() => setStep(10)} />
+      )}
+
+      {step === 10 && (
+        <SignUpScreen onComplete={() => setStep(11)} onSignIn={() => setStep(9)} />
+      )}
+
+      {step === 11 && (
+        <ClosetHomeScreen onAddPiece={() => setStep(12)} />
+      )}
+
+      {step === 12 && (
+        <GarmentClassificationScreen onBack={() => setStep(11)} />
       )}
     </OnboardingProvider>
   );
-}
-
-function HomeScreenContent() {
-  return null;
 }
