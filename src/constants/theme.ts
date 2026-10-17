@@ -24,6 +24,41 @@ export const Colors = {
     onPrimaryMuted: '#D5DEEA',
     outlineOnNavy: '#8EA0B8',
     slate: '#7E93AB',
+    navySwatch: '#14213F',
+    cameraNavy: '#12213F',
+    blueSlate: '#5D7195',
+    olive: '#6C7E50',
+    rust: '#BE5538',
+    softBlue: '#DDE5F2',
+    softBlueAlt: '#DEE5F2',
+    outlineBlue: '#DCE4F1',
+    borderBlue: '#D8DFEB',
+    warmOrb: '#EAE4DE',
+    coolOrb: '#E5EAF4',
+    oliveTile: '#E8EDDF',
+    rose: '#EAB5AE',
+    cream: '#EFE5D6',
+    sandTile: '#F0E8DA',
+    rustTile: '#F4E1D8',
+    shoeSole: '#F7F8FC',
+    bannerNavy: '#243652',
+    mutedNavy: '#1C3558',
+    mutedOnPrimary: '#E1E7F0',
+    shadow: '#101C38',
+    cameraOverlay: 'rgba(18, 33, 63, 0.48)',
+    cameraControl: 'rgba(255,255,255,0.14)',
+    cameraControlSoft: 'rgba(255,255,255,0.15)',
+    cameraControlStrong: 'rgba(255,255,255,0.16)',
+    blueAccent: '#208AEF',
+    blueLink: '#3c87f7',
+    blueGradientStart: '#3C9FFE',
+    blueGradientEnd: '#0274DF',
+    accentCharcoal: '#5C6B73',
+    accentForest: '#3D5A4C',
+    accentTerracotta: '#8C4A3A',
+    accentPlum: '#6F5B7E',
+    accentRose: '#B66A73',
+    accentAmber: '#C28B4A',
   },
 
   dark: {
@@ -84,6 +119,9 @@ export const Spacing = {
   five: 32,
   six: 64,
 } as const;
+
+/** Shared horizontal page gutter for screen-level content. */
+export const PageGutter = 24;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
