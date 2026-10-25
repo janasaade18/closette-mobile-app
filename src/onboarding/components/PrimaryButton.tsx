@@ -6,12 +6,14 @@ interface PrimaryButtonProps {
   title: string;
   onPress: () => void;
   tone?: 'navy' | 'light' | 'outline';
+  bottomSpacing?: number;
 }
 
 export default function PrimaryButton({
   title,
   onPress,
   tone = 'navy',
+  bottomSpacing = 16,
 }: PrimaryButtonProps) {
   const light = tone === 'light';
   const outline = tone === 'outline';
@@ -20,6 +22,7 @@ export default function PrimaryButton({
     <TouchableOpacity
       style={[
         styles.button,
+        { marginBottom: bottomSpacing },
         light && styles.lightButton,
         outline && styles.outlineButton,
       ]}
@@ -44,7 +47,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
   lightButton: {
     backgroundColor: Colors.light.onPrimary,
