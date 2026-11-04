@@ -15,7 +15,7 @@ export default function MainLayout() {
         ? 'shop'
         : pathname.endsWith('/profile')
           ? 'profile'
-        : 'home';
+          : 'home';
 
   const handleTabPress = (tab: ClosetteTab) => {
     if (tab === 'home') router.navigate('/home');
@@ -27,7 +27,13 @@ export default function MainLayout() {
 
   return (
     <View style={styles.container}>
-      <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar, sceneStyle: styles.scene, freezeOnBlur: true }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.hiddenTabBar,
+          sceneStyle: styles.scene,
+          freezeOnBlur: true,
+        }}>
         <Tabs.Screen name="home" />
         <Tabs.Screen name="closet" />
         <Tabs.Screen name="muse" />
@@ -36,7 +42,9 @@ export default function MainLayout() {
         <Tabs.Screen name="muse-chat" options={{ href: null }} />
         <Tabs.Screen name="miroir" options={{ href: null }} />
       </Tabs>
-      {!pathname.endsWith('/muse-chat') && !pathname.endsWith('/miroir') && <ClosetteBottomNav activeTab={activeTab} onTabPress={handleTabPress} />}
+      {!pathname.endsWith('/muse-chat') && !pathname.endsWith('/miroir') ? (
+        <ClosetteBottomNav activeTab={activeTab} onTabPress={handleTabPress} />
+      ) : null}
     </View>
   );
 }
