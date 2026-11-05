@@ -37,6 +37,7 @@ export default function GarmentClassificationScreen({
     null,
   );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isReadingLook, setIsReadingLook] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appearanceError, setAppearanceError] = useState<string | null>(null);
@@ -52,8 +53,38 @@ export default function GarmentClassificationScreen({
   const frameLayout = useMemo(() => ({ width: 0, height: 320 }), []);
   const appearanceGarment = appearance?.garments?.[0] ?? null;
 
+  const loadAppearance = async (
+    uri: string,
+    next: GarmentClassifyResult,
+  ) => {
+    if (!next.subcategory || !next.bbox) {
+      return;
+    }
+    setIsReadingLook(true);
+    setAppearanceError(null);
+    try {
+      const looks = await analyzeGarmentAppearance(uri, {
+        type: next.subcategory,
+        group: next.category,
+        confidence: next.confidence,
+        box: next.bbox,
+      });
+      setAppearance(looks);
+      if (looks.status === 'failed') {
+        setAppearanceError(looks.error ?? 'Appearance could not be read.');
+      }
+    } catch (err) {
+      setAppearanceError(
+        err instanceof Error ? err.message : 'Appearance could not be read.',
+      );
+    } finally {
+      setIsReadingLook(false);
+    }
+  };
+
   const analyzeUri = async (uri: string) => {
     setIsAnalyzing(true);
+    setIsReadingLook(false);
     setResult(null);
     setAppearance(null);
     setSelected(null);
@@ -69,28 +100,11 @@ export default function GarmentClassificationScreen({
           subcategory: next.subcategory,
         });
       }
-
-      if (next.subcategory && next.bbox) {
-        try {
-          const looks = await analyzeGarmentAppearance(uri, {
-            type: next.subcategory,
-            group: next.category,
-            confidence: next.confidence,
-            box: next.bbox,
-          });
-          setAppearance(looks);
-          if (looks.status === 'failed') {
-            setAppearanceError(looks.error ?? 'Appearance could not be read.');
-          }
-        } catch (err) {
-          setAppearanceError(
-            err instanceof Error ? err.message : 'Appearance could not be read.',
-          );
-        }
-      }
+      // Show type immediately — color/pattern can take longer on Nest.
+      setIsAnalyzing(false);
+      void loadAppearance(uri, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not classify this photo.');
-    } finally {
       setIsAnalyzing(false);
     }
   };
@@ -293,9 +307,7 @@ export default function GarmentClassificationScreen({
           {isAnalyzing ? (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator color={Colors.light.onPrimary} size="large" />
-              <Text style={styles.loadingText}>
-                {result ? 'Reading color & pattern…' : 'Reading the garment…'}
-              </Text>
+              <Text style={styles.loadingText}>Reading the garment…</Text>
             </View>
           ) : null}
         </View>
@@ -366,6 +378,15 @@ export default function GarmentClassificationScreen({
                 {result.models.classifier}
                 {result.latency_ms != null ? ` · ${Math.round(result.latency_ms)} ms` : ''}
               </Text>
+            ) : null}
+
+            {isReadingLook ? (
+              <View style={styles.lookBlock}>
+                <View style={styles.lookLoadingRow}>
+                  <ActivityIndicator color={Colors.light.primary} />
+                  <Text style={styles.lookMeta}>Reading color & pattern…</Text>
+                </View>
+              </View>
             ) : null}
 
             {appearanceGarment?.color?.primary ? (
@@ -696,6 +717,11 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.light.border,
+  },
+  lookLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   lookLabel: {
     fontSize: 13,

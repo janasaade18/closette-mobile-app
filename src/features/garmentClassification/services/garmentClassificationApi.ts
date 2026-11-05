@@ -1,18 +1,55 @@
+import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
-/**
- * Prefer the Nest gateway when set. Fall back to the Python ML service
- * (port 8090) for local garment-type testing without Nest running.
- */
-const NEST_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:3000';
-const ML_URL =
-  process.env.EXPO_PUBLIC_GARMENT_API_URL ??
-  (NEST_URL.includes(':3000')
-    ? NEST_URL.replace(':3000', ':8090')
-    : 'http://127.0.0.1:8090');
-
 const USE_NEST = process.env.EXPO_PUBLIC_GARMENT_VIA_NEST === '1';
+
+/**
+ * Same machine the phone already used to load Metro. That IP updates
+ * automatically whenever you open Expo Go on a new Wi‑Fi — no .env edits.
+ */
+function resolveDevHost(): string {
+  const explicit = process.env.EXPO_PUBLIC_DEV_HOST?.trim();
+  if (explicit) {
+    return explicit.replace(/^https?:\/\//, '').split(':')[0];
+  }
+
+  const candidates = [
+    Constants.expoConfig?.hostUri,
+    Constants.manifest2?.extra?.expoGo?.debuggerHost,
+    // Legacy manifest (Expo Go)
+    (Constants as { manifest?: { debuggerHost?: string } }).manifest
+      ?.debuggerHost,
+    Constants.linkingUri,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const match = String(candidate).match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  // Android emulator → host loopback. Physical USB + adb reverse → 127.0.0.1.
+  return '127.0.0.1';
+}
+
+function nestBaseUrl() {
+  const override = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (override) {
+    return override.replace(/\/$/, '');
+  }
+  return `http://${resolveDevHost()}:3000`;
+}
+
+function mlBaseUrl() {
+  const override = process.env.EXPO_PUBLIC_GARMENT_API_URL?.trim();
+  if (override) {
+    return override.replace(/\/$/, '');
+  }
+  return `http://${resolveDevHost()}:8090`;
+}
 
 export type GarmentClassifyStatus =
   | 'success'
@@ -87,16 +124,16 @@ export type GarmentAppearanceResult = {
 function classifyUrl(includeMask: boolean) {
   if (USE_NEST) {
     const query = includeMask ? '' : '?include_mask=false';
-    return `${NEST_URL}/garments/classify${query}`;
+    return `${nestBaseUrl()}/garments/classify${query}`;
   }
   const query = includeMask ? 'include_mask=true' : 'include_mask=false';
-  return `${ML_URL}/v1/garments/classify?${query}`;
+  return `${mlBaseUrl()}/v1/garments/classify?${query}`;
 }
 
 function correctionsUrl() {
   return USE_NEST
-    ? `${NEST_URL}/garments/corrections`
-    : `${ML_URL}/v1/garments/corrections`;
+    ? `${nestBaseUrl()}/garments/corrections`
+    : `${mlBaseUrl()}/v1/garments/corrections`;
 }
 
 function guessName(uri: string) {
@@ -144,21 +181,29 @@ async function parseBody(response: Response): Promise<GarmentClassifyResult> {
   return unwrapClassifyPayload(json);
 }
 
+function networkHint(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/unsupported FormDataPart/i.test(message)) {
+    return 'Photo upload failed on this device build. Reload the app and try again.';
+  }
+  if (
+    /Network request failed|Failed to fetch|timed out|ECONNREFUSED|Could not connect/i.test(
+      message,
+    )
+  ) {
+    return `Cannot reach the classifier at ${mlBaseUrl()}. On campus Wi‑Fi, phones often cannot talk to laptops — use a phone hotspot, or USB with adb reverse to 127.0.0.1.`;
+  }
+  return message;
+}
+
 async function classifyWithFetch(uri: string, includeMask: boolean) {
   const name = guessName(uri);
   const form = new FormData();
-
   const field = USE_NEST ? 'file' : 'image';
-  if (Platform.OS === 'web') {
-    const blob = await (await fetch(uri)).blob();
-    form.append(field, blob, name);
-  } else {
-    form.append(field, {
-      uri,
-      name,
-      type: mimeForName(name),
-    } as unknown as Blob);
-  }
+  // Always append a real Blob. RN FormData { uri, name, type } throws
+  // "unsupported FormDataPart" on current Expo Go builds.
+  const blob = await (await fetch(uri)).blob();
+  form.append(field, blob, name);
 
   const response = await fetch(classifyUrl(includeMask), {
     method: 'POST',
@@ -192,8 +237,12 @@ export async function classifyGarment(
   }
   try {
     return await classifyWithUploadAsync(uri, includeMask);
-  } catch {
-    return classifyWithFetch(uri, includeMask);
+  } catch (uploadError) {
+    try {
+      return await classifyWithFetch(uri, includeMask);
+    } catch (fetchError) {
+      throw new Error(networkHint(uploadError ?? fetchError));
+    }
   }
 }
 
@@ -219,7 +268,7 @@ export async function submitGarmentCorrection(
 }
 
 function appearanceUrl() {
-  return `${NEST_URL}/garments/appearance`;
+  return `${nestBaseUrl()}/garments/appearance`;
 }
 
 function unwrapAppearancePayload(json: unknown): GarmentAppearanceResult {
