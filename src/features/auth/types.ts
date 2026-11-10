@@ -1,0 +1,41 @@
+export type ClosetteUserProfile = {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  age_range: string | null;
+  gender: string | null;
+  location: string | null;
+  preferred_units: string | null;
+  height_cm: string | null;
+  top_size: string | null;
+  bottom_size: string | null;
+  accent_color: string | null;
+  photo_url: string | null;
+  weather_aware: boolean;
+  preferred_styles: string[];
+  preferred_colors: string[];
+  preferred_clothing: string[];
+  common_occasions: string[];
+  onboarding_completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OnboardingProfileInput = {
+  display_name?: string | null;
+  age_range?: string | null;
+  gender?: string | null;
+  location?: string | null;
+  preferred_units?: string | null;
+  height_cm?: string | null;
+  top_size?: string | null;
+  bottom_size?: string | null;
+  accent_color?: string | null;
+  photo_url?: string | null;
+  weather_aware?: boolean;
+  preferred_styles?: string[];
+  preferred_colors?: string[];
+  preferred_clothing?: string[];
+  common_occasions?: string[];
+  onboarding_completed_at?: string | null;
+};

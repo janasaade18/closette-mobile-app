@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,25 +13,66 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
+import { useAuth } from '@/features/auth/AuthContext';
+import { saveGarmentToCloset } from '@/features/closet/services/closetApi';
 import {
+  COLOR_OPTIONS,
+  PATTERN_OPTIONS,
+  TEXTURE_OPTIONS,
   analyzeGarmentAppearance,
   classifyGarment,
   displayName,
+  fetchGarmentTaxonomy,
   statusCopy,
   submitGarmentCorrection,
   type GarmentAlternative,
   type GarmentAppearanceResult,
   type GarmentClassifyResult,
+  type GarmentTaxonomyGroup,
 } from '@/features/garmentClassification/services/garmentClassificationApi';
 
 interface GarmentClassificationScreenProps {
   onBack?: () => void;
 }
 
+const FALLBACK_GROUPS: GarmentTaxonomyGroup[] = [
+  {
+    id: 'tops',
+    name: 'Tops',
+    types: ['t-shirt', 'shirt', 'polo', 'blouse', 'sweater', 'hoodie', 'tank-top', 'sweatshirt'],
+  },
+  {
+    id: 'bottoms',
+    name: 'Bottoms',
+    types: ['jeans', 'trousers', 'chinos', 'shorts', 'skirt', 'leggings'],
+  },
+  {
+    id: 'one-piece',
+    name: 'One-piece',
+    types: ['dress', 'jumpsuit', 'romper'],
+  },
+  {
+    id: 'outerwear',
+    name: 'Outerwear',
+    types: ['jacket', 'coat', 'blazer', 'trench-coat', 'raincoat'],
+  },
+  {
+    id: 'footwear',
+    name: 'Footwear',
+    types: ['sneakers', 'boots', 'sandals', 'formal-shoes', 'flats', 'heels'],
+  },
+  {
+    id: 'accessories',
+    name: 'Accessories',
+    types: ['hat', 'scarf', 'belt', 'bag', 'gloves', 'other-accessories'],
+  },
+];
+
 export default function GarmentClassificationScreen({
   onBack,
 }: GarmentClassificationScreenProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(
     null,
@@ -49,9 +90,33 @@ export default function GarmentClassificationScreen({
     category: string;
     subcategory: string;
   } | null>(null);
+  const [editedPattern, setEditedPattern] = useState<string | null>(null);
+  const [editedTexture, setEditedTexture] = useState<string | null>(null);
+  const [editedColor, setEditedColor] = useState<string | null>(null);
+  const [taxonomyGroups, setTaxonomyGroups] =
+    useState<GarmentTaxonomyGroup[]>(FALLBACK_GROUPS);
 
   const frameLayout = useMemo(() => ({ width: 0, height: 320 }), []);
   const appearanceGarment = appearance?.garments?.[0] ?? null;
+
+  useEffect(() => {
+    void fetchGarmentTaxonomy()
+      .then((taxonomy) => {
+        if (taxonomy.groups?.length) {
+          setTaxonomyGroups(taxonomy.groups);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!appearanceGarment) {
+      return;
+    }
+    setEditedPattern(appearanceGarment.pattern?.primary ?? null);
+    setEditedTexture(appearanceGarment.texture?.primary ?? null);
+    setEditedColor(appearanceGarment.color?.primary?.name ?? null);
+  }, [appearanceGarment]);
 
   const loadAppearance = async (
     uri: string,
@@ -88,6 +153,9 @@ export default function GarmentClassificationScreen({
     setResult(null);
     setAppearance(null);
     setSelected(null);
+    setEditedPattern(null);
+    setEditedTexture(null);
+    setEditedColor(null);
     setError(null);
     setAppearanceError(null);
 
@@ -171,40 +239,72 @@ export default function GarmentClassificationScreen({
     });
   };
 
+  const typeOptions = useMemo(() => {
+    const group = taxonomyGroups.find((item) => item.id === selected?.category);
+    return group?.types ?? [];
+  }, [taxonomyGroups, selected?.category]);
+
+  const selectCategory = (categoryId: string) => {
+    const group = taxonomyGroups.find((item) => item.id === categoryId);
+    const nextType =
+      group?.types.includes(selected?.subcategory ?? '')
+        ? selected!.subcategory
+        : group?.types[0];
+    if (!nextType) {
+      return;
+    }
+    setSelected({ category: categoryId, subcategory: nextType });
+  };
+
   const confirmSelection = async () => {
-    if (!result || !selected) {
+    if (!result || !selected || !imageUri) {
+      return;
+    }
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Sign in again, then save this piece to your closet.');
       return;
     }
 
-    const needsCorrection =
+    const predictedPattern = appearanceGarment?.pattern?.primary ?? null;
+    const predictedTexture = appearanceGarment?.texture?.primary ?? null;
+    const predictedColor = appearanceGarment?.color?.primary?.name ?? null;
+    const typeChanged =
       selected.subcategory !== result.subcategory ||
       selected.category !== result.category;
-
-    if (!needsCorrection && result.status === 'success') {
-      Alert.alert('Saved', `${displayName(selected.subcategory)} is ready for your closet.`);
-      onBack?.();
-      return;
-    }
+    const lookChanged =
+      (editedPattern && editedPattern !== predictedPattern) ||
+      (editedTexture && editedTexture !== predictedTexture) ||
+      (editedColor && editedColor !== predictedColor);
 
     setIsSaving(true);
     try {
-      await submitGarmentCorrection({
-        image_id: `mobile-${Date.now()}`,
-        predicted_category: result.category,
-        predicted_subcategory: result.subcategory,
-        corrected_category: selected.category,
-        corrected_subcategory: selected.subcategory,
-        confidence: result.confidence,
-        model_version: result.model_version,
-      });
+      if (typeChanged || lookChanged) {
+        await submitGarmentCorrection({
+          image_id: `mobile-${Date.now()}`,
+          predicted_category: result.category,
+          predicted_subcategory: result.subcategory,
+          corrected_category: selected.category,
+          corrected_subcategory: selected.subcategory,
+          confidence: result.confidence,
+          model_version: result.model_version,
+          predicted_pattern: predictedPattern,
+          corrected_pattern: editedPattern,
+          predicted_texture: predictedTexture,
+          corrected_texture: editedTexture,
+          predicted_color: predictedColor,
+          corrected_color: editedColor,
+        });
+      }
+
+      await saveGarmentToCloset(imageUri, user.id);
       Alert.alert(
-        'Confirmed',
-        `${displayName(selected.subcategory)} was saved. Corrections help train Closette later.`,
+        'Saved to closet',
+        `${displayName(selected.subcategory)} is now in My closet.`,
       );
       onBack?.();
     } catch (err) {
       Alert.alert(
-        'Could not save correction',
+        'Could not save to closet',
         err instanceof Error ? err.message : 'Try again in a moment.',
       );
     } finally {
@@ -213,12 +313,7 @@ export default function GarmentClassificationScreen({
   };
 
   const canSort = Boolean(imageUri) && !isAnalyzing;
-  const showConfirm =
-    Boolean(result) &&
-    Boolean(selected) &&
-    (result?.status === 'review' ||
-      result?.status === 'success' ||
-      selected?.subcategory !== result?.subcategory);
+  const showConfirm = Boolean(result) && Boolean(selected);
 
   const primaryCta = showConfirm ? (
     <Pressable
@@ -226,7 +321,7 @@ export default function GarmentClassificationScreen({
       onPress={confirmSelection}
       disabled={isSaving}>
       <Text style={styles.sortButtonText}>
-        {isSaving ? 'Saving…' : 'Confirm for closet'}
+        {isSaving ? 'Saving to closet…' : 'Save to closet'}
       </Text>
     </Pressable>
   ) : (
@@ -336,14 +431,66 @@ export default function GarmentClassificationScreen({
               {displayName(selected?.subcategory ?? result.subcategory)}
             </Text>
             <Text style={styles.resultBody}>
-              {displayName(selected?.category ?? result.category)}
+              Edit anything Closette got wrong — corrections teach the model.
               {result.reason ? ` · ${result.reason.replace(/_/g, ' ')}` : ''}
             </Text>
             <Text style={styles.statusCopy}>{statusCopy(result)}</Text>
 
+            <View style={styles.editBlock}>
+              <Text style={styles.editLabel}>Category</Text>
+              <View style={styles.editRow}>
+                {taxonomyGroups.map((group) => {
+                  const active = selected?.category === group.id;
+                  return (
+                    <Pressable
+                      key={group.id}
+                      onPress={() => selectCategory(group.id)}
+                      style={[styles.editChip, active && styles.editChipActive]}>
+                      <Text
+                        style={[
+                          styles.editChipText,
+                          active && styles.editChipTextActive,
+                        ]}>
+                        {group.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.editBlock}>
+              <Text style={styles.editLabel}>Type</Text>
+              <View style={styles.editRow}>
+                {typeOptions.map((typeId) => {
+                  const active = selected?.subcategory === typeId;
+                  return (
+                    <Pressable
+                      key={typeId}
+                      onPress={() =>
+                        setSelected((current) =>
+                          current
+                            ? { ...current, subcategory: typeId }
+                            : { category: result.category ?? 'tops', subcategory: typeId },
+                        )
+                      }
+                      style={[styles.editChip, active && styles.editChipActive]}>
+                      <Text
+                        style={[
+                          styles.editChipText,
+                          active && styles.editChipTextActive,
+                        ]}>
+                        {displayName(typeId)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             {result.alternatives && result.alternatives.length > 0 ? (
               <View style={styles.altBlock}>
-                <Text style={styles.altLabel}>Alternatives</Text>
+                <Text style={styles.altLabel}>AI suggestions</Text>
                 <View style={styles.altRow}>
                   {result.alternatives.map((alternative) => {
                     const active = selected?.subcategory === alternative.subcategory;
@@ -389,43 +536,93 @@ export default function GarmentClassificationScreen({
               </View>
             ) : null}
 
-            {appearanceGarment?.color?.primary ? (
+            {appearanceGarment ? (
               <View style={styles.lookBlock}>
                 <Text style={styles.lookLabel}>Look</Text>
-                <View style={styles.lookRow}>
-                  <View
-                    style={[
-                      styles.swatch,
-                      { backgroundColor: appearanceGarment.color.primary.hex },
-                    ]}
-                  />
-                  <View style={styles.lookCopy}>
-                    <Text style={styles.lookTitle}>
-                      {displayName(appearanceGarment.color.primary.name)}
-                      {appearanceGarment.color.is_multicolor ? ' · multi' : ''}
-                    </Text>
-                    <Text style={styles.lookMeta}>
-                      Pattern {displayName(appearanceGarment.pattern.primary)}
-                      {' · '}
-                      Texture {displayName(appearanceGarment.texture.primary)}
-                    </Text>
-                  </View>
-                </View>
-                {appearanceGarment.color.secondary &&
-                appearanceGarment.color.secondary.length > 0 ? (
-                  <View style={styles.secondaryRow}>
-                    {appearanceGarment.color.secondary.map((swatch) => (
-                      <View key={`${swatch.name}-${swatch.hex}`} style={styles.secondaryChip}>
-                        <View
-                          style={[styles.swatchSmall, { backgroundColor: swatch.hex }]}
-                        />
-                        <Text style={styles.secondaryText}>
-                          {displayName(swatch.name)}
-                        </Text>
-                      </View>
-                    ))}
+                {appearanceGarment.color?.primary ? (
+                  <View style={styles.lookRow}>
+                    <View
+                      style={[
+                        styles.swatch,
+                        { backgroundColor: appearanceGarment.color.primary.hex },
+                      ]}
+                    />
+                    <View style={styles.lookCopy}>
+                      <Text style={styles.lookTitle}>
+                        {displayName(editedColor ?? appearanceGarment.color.primary.name)}
+                        {appearanceGarment.color.is_multicolor ? ' · multi' : ''}
+                      </Text>
+                      <Text style={styles.lookMeta}>
+                        Pattern {displayName(editedPattern ?? appearanceGarment.pattern.primary)}
+                        {' · '}
+                        Texture {displayName(editedTexture ?? appearanceGarment.texture.primary)}
+                      </Text>
+                    </View>
                   </View>
                 ) : null}
+
+                <Text style={styles.editLabel}>Color</Text>
+                <View style={styles.editRow}>
+                  {COLOR_OPTIONS.map((colorId) => {
+                    const active = editedColor === colorId;
+                    return (
+                      <Pressable
+                        key={colorId}
+                        onPress={() => setEditedColor(colorId)}
+                        style={[styles.editChip, active && styles.editChipActive]}>
+                        <Text
+                          style={[
+                            styles.editChipText,
+                            active && styles.editChipTextActive,
+                          ]}>
+                          {displayName(colorId)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.editLabel}>Pattern</Text>
+                <View style={styles.editRow}>
+                  {PATTERN_OPTIONS.map((patternId) => {
+                    const active = editedPattern === patternId;
+                    return (
+                      <Pressable
+                        key={patternId}
+                        onPress={() => setEditedPattern(patternId)}
+                        style={[styles.editChip, active && styles.editChipActive]}>
+                        <Text
+                          style={[
+                            styles.editChipText,
+                            active && styles.editChipTextActive,
+                          ]}>
+                          {displayName(patternId)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.editLabel}>Texture</Text>
+                <View style={styles.editRow}>
+                  {TEXTURE_OPTIONS.map((textureId) => {
+                    const active = editedTexture === textureId;
+                    return (
+                      <Pressable
+                        key={textureId}
+                        onPress={() => setEditedTexture(textureId)}
+                        style={[styles.editChip, active && styles.editChipActive]}>
+                        <Text
+                          style={[
+                            styles.editChipText,
+                            active && styles.editChipTextActive,
+                          ]}>
+                          {displayName(textureId)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
 
@@ -660,6 +857,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Typeface.body,
     color: Colors.light.textSecondary,
+  },
+  editBlock: {
+    marginTop: 14,
+  },
+  editLabel: {
+    fontSize: 13,
+    fontFamily: Typeface.bodyStrong,
+    color: Colors.light.textSecondary,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  editRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  editChip: {
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.light.canvas,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  editChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  editChipText: {
+    fontSize: 13,
+    fontFamily: Typeface.body,
+    color: Colors.light.primary,
+  },
+  editChipTextActive: {
+    color: Colors.light.onPrimary,
   },
   statusCopy: {
     marginTop: 10,

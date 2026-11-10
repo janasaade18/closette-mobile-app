@@ -1,14 +1,48 @@
+import { useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Typeface } from '@/constants/theme';
+import { useAuth } from '@/features/auth/AuthContext';
+import { authErrorMessage, saveOnboardingProfile } from '@/features/auth/userProfile';
 import PrimaryButton from '@/onboarding/components/PrimaryButton';
+import { useOnboarding } from '@/onboarding/OnboardingContext';
 
 interface DoneScreenProps {
   onOpenCloset: () => void;
 }
 
 export default function DoneScreen({ onOpenCloset }: DoneScreenProps) {
+  const { user, setProfile } = useAuth();
+  const { preferences } = useOnboarding();
+  const [saving, setSaving] = useState(false);
+
+  const handleOpenCloset = async () => {
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Create an account before opening your closet.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const displayName =
+        preferences.name?.trim() ||
+        (typeof user.user_metadata?.display_name === 'string'
+          ? user.user_metadata.display_name
+          : undefined);
+      const profile = await saveOnboardingProfile(user.id, {
+        ...preferences,
+        name: displayName,
+      });
+      setProfile(profile);
+      onOpenCloset();
+    } catch (error) {
+      Alert.alert('Could not save preferences', authErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -26,7 +60,14 @@ export default function DoneScreen({ onOpenCloset }: DoneScreenProps) {
         </Text>
       </View>
 
-      <PrimaryButton title="Open my closet" onPress={onOpenCloset} tone="light" />
+      {saving ? (
+        <View style={styles.saving}>
+          <ActivityIndicator color={Colors.light.onPrimary} />
+          <Text style={styles.savingText}>Saving your Closette…</Text>
+        </View>
+      ) : (
+        <PrimaryButton title="Open my closet" onPress={handleOpenCloset} tone="light" />
+      )}
     </View>
   );
 }
@@ -58,43 +99,53 @@ const styles = StyleSheet.create({
     right: -30,
   },
   blobLeft: {
-    width: 28,
-    height: 28,
-    backgroundColor: Colors.light.bubble,
-    opacity: 0.4,
-    bottom: '32%',
-    left: 48,
+    width: 180,
+    height: 180,
+    bottom: 120,
+    left: -60,
   },
   hero: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 48,
   },
   check: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: Colors.light.onPrimary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   checkMark: {
-    fontSize: 48,
     color: Colors.light.primary,
+    fontSize: 34,
     fontFamily: Typeface.display,
   },
   title: {
-    fontSize: 32,
-    fontFamily: Typeface.display,
     color: Colors.light.onPrimary,
-    marginBottom: 10,
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: Typeface.display,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   body: {
+    color: Colors.light.onPrimary,
+    opacity: 0.86,
     fontSize: 16,
     lineHeight: 24,
     fontFamily: Typeface.body,
-    color: Colors.light.onPrimaryMuted,
     textAlign: 'center',
+  },
+  saving: {
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 18,
+  },
+  savingText: {
+    color: Colors.light.onPrimary,
+    fontFamily: Typeface.body,
+    fontSize: 15,
   },
 });

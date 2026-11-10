@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
+import { useAuth } from '@/features/auth/AuthContext';
 import PrimaryButton from '@/onboarding/components/PrimaryButton';
 import { useOnboarding } from '@/onboarding/OnboardingContext';
 interface ClosetHomeScreenProps { onAddPiece: () => void }
@@ -19,8 +20,12 @@ function OutfitItem({ kind, background, color = Colors.light.primary, recent = f
 }
 export default function ClosetHomeScreen({ onAddPiece }: ClosetHomeScreenProps) {
   const router = useRouter();
+  const { profile } = useAuth();
   const { preferences } = useOnboarding();
-  const name = preferences.name?.trim() || 'Layla';
+  const name =
+    preferences.name?.trim() ||
+    profile?.display_name?.trim() ||
+    'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}><View style={styles.screen}><View pointerEvents="none" style={styles.topOrb} /><View pointerEvents="none" style={styles.bottomOrb} /><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>

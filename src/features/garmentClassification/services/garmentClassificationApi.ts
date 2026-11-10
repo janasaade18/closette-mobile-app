@@ -91,7 +91,69 @@ export type GarmentCorrectionInput = {
   corrected_subcategory: string;
   confidence: number | null;
   model_version: string;
+  predicted_pattern?: string | null;
+  corrected_pattern?: string | null;
+  predicted_texture?: string | null;
+  corrected_texture?: string | null;
+  predicted_color?: string | null;
+  corrected_color?: string | null;
 };
+
+export type GarmentTaxonomyGroup = {
+  id: string;
+  name: string;
+  types: string[];
+};
+
+export type GarmentTaxonomy = {
+  version: number;
+  groups: GarmentTaxonomyGroup[];
+};
+
+export const PATTERN_OPTIONS = [
+  'solid',
+  'striped',
+  'checked',
+  'plaid',
+  'polka_dot',
+  'floral',
+  'graphic_print',
+  'abstract_print',
+  'camouflage',
+  'animal_print',
+  'color_block',
+  'other',
+] as const;
+
+export const TEXTURE_OPTIONS = [
+  'denim',
+  'cotton',
+  'leather',
+  'fur',
+  'knit',
+  'chiffon',
+  'silk',
+  'other',
+] as const;
+
+export const COLOR_OPTIONS = [
+  'black',
+  'white',
+  'navy',
+  'blue',
+  'red',
+  'green',
+  'beige',
+  'brown',
+  'grey',
+  'pink',
+  'yellow',
+  'orange',
+  'purple',
+  'cream',
+  'olive',
+  'burgundy',
+] as const;
 
 export type GarmentColorSwatch = {
   name: string;
@@ -260,11 +322,48 @@ export async function submitGarmentCorrection(
     data?: { ok?: boolean };
     message?: string;
     error?: string;
+    detail?: { message?: string } | string;
   };
   if (!response.ok) {
-    throw new Error(json.message ?? json.error ?? `Correction failed: ${response.status}`);
+    const detail =
+      typeof json.detail === 'string'
+        ? json.detail
+        : json.detail && typeof json.detail === 'object'
+          ? json.detail.message
+          : undefined;
+    throw new Error(
+      json.message ?? json.error ?? detail ?? `Correction failed: ${response.status}`,
+    );
   }
   return { ok: Boolean(json.ok ?? json.success ?? json.data ?? true) };
+}
+
+export async function fetchGarmentTaxonomy(): Promise<GarmentTaxonomy> {
+  const urls = [
+    `${nestBaseUrl()}/garments/taxonomy`,
+    `${mlBaseUrl()}/v1/garments/taxonomy`,
+  ];
+  let lastError: unknown;
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        continue;
+      }
+      const json = (await response.json()) as GarmentTaxonomy & {
+        data?: GarmentTaxonomy;
+      };
+      const payload = json.data ?? json;
+      if (payload?.groups?.length) {
+        return payload;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Could not load garment taxonomy');
 }
 
 function appearanceUrl() {
