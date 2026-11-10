@@ -6,9 +6,9 @@ import GarmentClassificationScreen from '@/features/garmentClassification/screen
 export default function HomeTabScreen() {
   const [addingPiece, setAddingPiece] = useState(false);
 
-  return addingPiece ? (
-    <GarmentClassificationScreen onBack={() => setAddingPiece(false)} />
-  ) : (
-    <ClosetHomeScreen onAddPiece={() => setAddingPiece(true)} />
-  );
+  if (addingPiece) {
+    return <GarmentClassificationScreen onBack={() => setAddingPiece(false)} />;
+  }
+
+  return <ClosetHomeScreen onAddPiece={() => setAddingPiece(true)} />;
 }
