@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { Colors, Typeface } from '@/constants/theme';
+import { useAuth } from '@/features/auth/AuthContext';
 import OnboardingHeader from '@/onboarding/components/OnboardingHeader';
 import PrimaryButton from '@/onboarding/components/PrimaryButton';
 import { useOnboarding } from '@/onboarding/OnboardingContext';
@@ -21,14 +22,45 @@ interface BasicInfoScreenProps {
   onBack?: () => void;
 }
 
+function resolveDisplayName(
+  preferencesName: string | undefined,
+  profileName: string | null | undefined,
+  metadataName: unknown,
+) {
+  if (preferencesName?.trim()) return preferencesName.trim();
+  if (profileName?.trim()) return profileName.trim();
+  if (typeof metadataName === 'string' && metadataName.trim()) {
+    return metadataName.trim();
+  }
+  return '';
+}
+
 export default function BasicInfoScreen({
   onContinue,
   onBack,
 }: BasicInfoScreenProps) {
+  const { profile, user } = useAuth();
   const { preferences, updatePreferences } = useOnboarding();
-  const [name, setName] = useState(preferences.name ?? '');
+  const [name, setName] = useState(
+    resolveDisplayName(
+      preferences.name,
+      profile?.display_name,
+      user?.user_metadata?.display_name,
+    ),
+  );
   const [location, setLocation] = useState(preferences.location ?? '');
   const [photoUri, setPhotoUri] = useState(preferences.photoUri);
+
+  useEffect(() => {
+    const next = resolveDisplayName(
+      preferences.name,
+      profile?.display_name,
+      user?.user_metadata?.display_name,
+    );
+    if (next && !name.trim()) {
+      setName(next);
+    }
+  }, [preferences.name, profile?.display_name, user?.user_metadata?.display_name, name]);
 
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();

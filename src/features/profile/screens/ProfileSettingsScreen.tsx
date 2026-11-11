@@ -5,19 +5,34 @@ import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
+import { useAuth } from '@/features/auth/AuthContext';
+import { authErrorMessage } from '@/features/auth/userProfile';
 
 const accentOptions = [Colors.light.navySwatch, Colors.light.blueSlate, Colors.light.sand];
 
 export default function ProfileSettingsScreen() {
   const router = useRouter();
-  const [accent, setAccent] = useState(accentOptions[0]);
-  const [weatherEnabled, setWeatherEnabled] = useState(true);
+  const { profile, signOut } = useAuth();
+  const [accent, setAccent] = useState(profile?.accent_color || accentOptions[0]);
+  const [weatherEnabled, setWeatherEnabled] = useState(profile?.weather_aware ?? true);
   const [reminderEnabled, setReminderEnabled] = useState(true);
 
-  const confirmLogout = () => Alert.alert('Log out?', 'You can sign in again whenever you want.', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Log out', style: 'destructive', onPress: () => router.replace('/sign-in') },
-  ]);
+  const confirmLogout = () =>
+    Alert.alert('Log out?', 'You can sign in again whenever you want.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/sign-in');
+          } catch (error) {
+            Alert.alert('Could not log out', authErrorMessage(error));
+          }
+        },
+      },
+    ]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -29,7 +44,7 @@ export default function ProfileSettingsScreen() {
 
           <Pressable accessibilityRole="button" onPress={() => Alert.alert('Profile', 'Profile editing is coming soon.')} style={styles.profileCard}>
             <View style={styles.avatar}><SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} tintColor={Colors.light.onPrimary} size={31} /></View>
-            <View><Text style={styles.profileName}>Layla</Text><Text style={styles.profileSubtitle}>Minimal · Smart casual</Text></View>
+            <View><Text style={styles.profileName}>{profile?.display_name || 'Closette member'}</Text><Text style={styles.profileSubtitle}>{profile?.email || 'Signed in'}</Text></View>
           </Pressable>
 
           <View style={styles.settingCard}>

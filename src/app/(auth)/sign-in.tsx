@@ -6,8 +6,8 @@ export default function SignInRoute() {
   const router = useRouter();
   return (
     <SignInScreen
-      onComplete={() => router.replace('/home')}
-      onSignUp={() => router.push('/sign-up')}
+      onComplete={() => router.replace('/')}
+      onSignUp={() => router.replace('/sign-up')}
     />
   );
 }

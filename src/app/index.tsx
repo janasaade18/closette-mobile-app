@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 
+import { useAuth } from '@/features/auth/AuthContext';
 import AccentScreen from '@/onboarding/screens/AccentScreen';
 import BasicInfoScreen from '@/onboarding/screens/BasicInfoScreen';
 import DoneScreen from '@/onboarding/screens/DoneScreen';
@@ -12,29 +13,66 @@ import SplashScreen from '@/onboarding/screens/SplashScreen';
 import WelcomeScreen from '@/onboarding/screens/WelcomeScreen';
 
 export default function IndexRoute() {
-  const [step, setStep] = useState(0);
   const router = useRouter();
+  const { session, profile, loading } = useAuth();
+  const [step, setStep] = useState(0);
+  const [splashDone, setSplashDone] = useState(false);
+
+  const needsOnboarding = Boolean(session && !profile?.onboarding_completed_at);
+
+  useEffect(() => {
+    if (loading || !splashDone) {
+      return;
+    }
+
+    if (session && profile?.onboarding_completed_at) {
+      router.replace('/home');
+      return;
+    }
+
+    if (session && !profile?.onboarding_completed_at && step < 2) {
+      // Authenticated users who never finished onboarding skip welcome/auth.
+      setStep(2);
+    }
+  }, [loading, splashDone, session, profile, step, router]);
+
+  if (!splashDone || loading) {
+    return (
+      <SplashScreen
+        onFinish={() => {
+          setSplashDone(true);
+          setStep(1);
+        }}
+      />
+    );
+  }
+
+  if (!session) {
+    return (
+      <WelcomeScreen
+        onGetStarted={() => router.push('/sign-up')}
+        onSignIn={() => router.push('/sign-in')}
+      />
+    );
+  }
+
+  if (!needsOnboarding) {
+    return (
+      <SplashScreen
+        onFinish={() => {
+          router.replace('/home');
+        }}
+      />
+    );
+  }
 
   return (
     <>
-      {step === 0 && <SplashScreen onFinish={() => setStep(1)} />}
-      {step === 1 && (
-        <WelcomeScreen
-          onGetStarted={() => setStep(2)}
-          onSignIn={() => router.push('/sign-in')}
-        />
-      )}
       {step === 2 && (
-        <IntroCarouselScreen
-          onBack={() => setStep(1)}
-          onDone={() => setStep(3)}
-        />
+        <IntroCarouselScreen onBack={() => setStep(2)} onDone={() => setStep(3)} />
       )}
       {step === 3 && (
-        <BasicInfoScreen
-          onBack={() => setStep(2)}
-          onContinue={() => setStep(4)}
-        />
+        <BasicInfoScreen onBack={() => setStep(2)} onContinue={() => setStep(4)} />
       )}
       {step === 4 && (
         <StylePreferencesScreen
