@@ -188,22 +188,32 @@ const MUSE_CATEGORIES = new Set([
   'accessories',
 ]);
 
-async function museFetch(path: string, body: unknown) {
+async function museFetch(path: string, body: unknown, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${museBaseUrl()}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (/aborted|AbortError/i.test(message)) {
+      throw new Error(
+        `Muse timed out after ${Math.round(timeoutMs / 1000)}s at ${museBaseUrl()}. Check EXPO_PUBLIC_MUSE_URL / that Muse is running on :8787.`,
+      );
+    }
     if (/Network request failed|Failed to fetch|ECONNREFUSED/i.test(message)) {
       throw new Error(
         `Cannot reach Muse at ${museBaseUrl()}. Start it with: node api/server.js --port 8787`,
       );
     }
     throw error instanceof Error ? error : new Error(message);
+  } finally {
+    clearTimeout(timer);
   }
   return response;
 }

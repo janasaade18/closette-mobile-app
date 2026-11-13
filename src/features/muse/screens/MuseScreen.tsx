@@ -200,12 +200,31 @@ export default function MuseScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id, occasion, weather, profile, mode, marketplaceOn]);
+    // Depend on stable profile fields only — a new profile object each render
+    // would retrigger Muse forever and look like an endless "Asking Muse…".
+  }, [
+    user?.id,
+    occasion,
+    weather.temperature_c,
+    weather.condition,
+    profile?.preferred_styles?.join('|'),
+    profile?.preferred_colors?.join('|'),
+    profile?.preferred_clothing?.join('|'),
+    mode,
+    marketplaceOn,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       setLoading(true);
-      void loadRecommendations();
+      void (async () => {
+        await loadRecommendations();
+        if (cancelled) return;
+      })();
+      return () => {
+        cancelled = true;
+      };
     }, [loadRecommendations]),
   );
 
