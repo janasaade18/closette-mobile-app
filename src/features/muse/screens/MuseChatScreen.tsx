@@ -31,6 +31,7 @@ import {
   type ChatContext,
   type ChatOutfitPayload,
 } from '@/features/muse/services/museChat';
+import { resolveLiveWeather } from '@/features/muse/services/liveWeather';
 import { sendOutfitFeedback } from '@/features/muse/services/museApi';
 import ShopProductIllustration from '@/features/shop/components/ShopProductIllustration';
 import type { ShopProduct } from '@/features/shop/data/products';
@@ -188,9 +189,27 @@ export default function MuseChatScreen() {
 
       setLoadingCloset(true);
       try {
-        const rows = await fetchClosetGarments(user.id);
+        const [rows, live] = await Promise.all([
+          fetchClosetGarments(user.id),
+          profile?.weather_aware === false
+            ? Promise.resolve(null)
+            : resolveLiveWeather(profile?.location),
+        ]);
         if (cancelled) return;
+        if (live) {
+          const next = {
+            ...DEFAULT_CHAT_CONTEXT,
+            weather: live.weather,
+          };
+          setContext(next);
+          contextRef.current = next;
+        }
         setWardrobe(rows);
+        const weatherHint = live
+          ? live.source === 'live'
+            ? ` Using live weather${live.label ? ` near ${live.label}` : ''}.`
+            : ' Using today’s cool / rain default until live weather is available.'
+          : '';
         setMessages([
           {
             id: nextMessageId.current++,
@@ -198,7 +217,7 @@ export default function MuseChatScreen() {
             text:
               rows.length === 0
                 ? 'Your closet is empty. Add a few pieces, then I will style you from what you own.'
-                : `I found ${rows.length} piece${rows.length === 1 ? '' : 's'} in your closet — pulling a first outfit now.`,
+                : `I found ${rows.length} piece${rows.length === 1 ? '' : 's'} in your closet — pulling a first outfit now.${weatherHint}`,
           },
         ]);
       } catch (error) {
@@ -219,7 +238,7 @@ export default function MuseChatScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, profile?.location, profile?.weather_aware]);
 
   useEffect(() => {
     if (loadingCloset || autoStarted.current || !user?.id || wardrobe.length === 0) {
@@ -267,16 +286,27 @@ export default function MuseChatScreen() {
     ]);
   };
 
+  const applyContextAndRefresh = (
+    patch: Partial<ChatContext>,
+    prompt: string,
+  ) => {
+    setContext((current) => {
+      const next = { ...current, ...patch };
+      contextRef.current = next;
+      return next;
+    });
+    void askMuse(prompt, { silentUser: true });
+  };
+
   const pickOccasion = () => {
     Alert.alert('Occasion', 'Choose an occasion for your outfit.', [
       ...OCCASIONS.map((entry) => ({
         text: entry.label,
         onPress: () =>
-          setContext((current) => ({
-            ...current,
-            occasion: entry.value,
-            occasionLabel: entry.label,
-          })),
+          applyContextAndRefresh(
+            { occasion: entry.value, occasionLabel: entry.label },
+            `Suggest an outfit for ${entry.label.toLowerCase()} with this weather`,
+          ),
       })),
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -286,7 +316,11 @@ export default function MuseChatScreen() {
     Alert.alert('Schedule', 'Choose a day and time.', [
       ...SCHEDULES.map((label) => ({
         text: label,
-        onPress: () => setContext((current) => ({ ...current, scheduleLabel: label })),
+        onPress: () =>
+          applyContextAndRefresh(
+            { scheduleLabel: label },
+            `Suggest an outfit for ${label.toLowerCase()}`,
+          ),
       })),
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -297,10 +331,10 @@ export default function MuseChatScreen() {
       ...WEATHER_PRESETS.map((entry) => ({
         text: entry.label,
         onPress: () =>
-          setContext((current) => ({
-            ...current,
-            weather: entry.weather,
-          })),
+          applyContextAndRefresh(
+            { weather: entry.weather },
+            `Suggest an outfit for ${entry.label}`,
+          ),
       })),
       { text: 'Cancel', style: 'cancel' },
     ]);

@@ -242,6 +242,7 @@ export const MUSE_CHAT_STARTERS = [
 export const DEFAULT_CHAT_CONTEXT: ChatContext = {
   occasion: 'smart-casual',
   occasionLabel: 'Smart casual',
-  weather: { temperature_c: 22, condition: 'clear' },
+  // Match Muse main tab + home weather chip so auto-suggest is not stuck on a warm clear day.
+  weather: { temperature_c: 18, condition: 'rain' },
   scheduleLabel: 'Anytime',
 };
