@@ -1,9 +1,9 @@
 import type { ClosetteUserProfile } from '@/features/auth/types';
 import type { ClosetGarment } from '@/features/closet/types';
-import { shopCatalog, shopProductById, type ShopProduct } from '@/features/shop/data/catalog';
+import { fetchActiveCatalog, toMuseProducts } from '@/features/catalog/api';
+import type { CatalogProduct } from '@/features/catalog/types';
 
 import {
-  marketplaceProductsForGender,
   recommendOutfits,
   type MuseOccasion,
   type MuseOutfit,
@@ -33,7 +33,7 @@ export type MuseChatReply = {
   text: string;
   context: ChatContext;
   outfit?: ChatOutfitPayload;
-  product?: ShopProduct;
+  product?: CatalogProduct;
   status?: MuseRecommendResponse['status'];
 };
 
@@ -166,10 +166,11 @@ function pickOutfit(
 function pickMarketplaceMatch(
   outfit: MuseOutfit | undefined,
   weather: MuseWeather,
-): ShopProduct | undefined {
+  products: CatalogProduct[],
+): CatalogProduct | undefined {
   const mixedId = outfit?.marketplace_items?.[0]?.product_id;
   if (mixedId) {
-    const hit = shopProductById(mixedId);
+    const hit = products.find((product) => product.id === mixedId);
     if (hit) return hit;
   }
 
@@ -178,17 +179,13 @@ function pickMarketplaceMatch(
     weather.condition === 'rain' ||
     weather.condition === 'snow' ||
     weather.condition === 'cold';
-  const pool = shopCatalog.filter((p) => p.in_stock);
-  if (cool) {
-    if (weather.condition === 'rain') {
-      return (
-        pool.find((p) => p.id === 'mkt-raincoat-01') ??
-        pool.find((p) => p.subcategory === 'jacket')
-      );
-    }
-    return pool.find((p) => p.id === 'mkt-jacket-01') ?? pool.find((p) => p.category === 'Outerwear');
+  if (!cool) return undefined;
+  if (weather.condition === 'rain') {
+    return products.find((product) =>
+      /rain|jacket|coat|outer/i.test(`${product.category ?? ''} ${product.name}`),
+    );
   }
-  return undefined;
+  return products.find((product) => /outer|jacket|coat/i.test(product.category ?? ''));
 }
 
 function replyCopy(context: ChatContext, mixed: boolean) {
@@ -240,7 +237,8 @@ export async function replyToMuseChat(input: {
   }
 
   const override = preferenceOverride(text, input.profile);
-  const catalog = marketplaceProductsForGender(input.profile?.gender);
+  const products = await fetchActiveCatalog();
+  const catalog = toMuseProducts(products);
 
   const result = await recommendOutfits({
     userId: input.userId,
@@ -272,7 +270,7 @@ export async function replyToMuseChat(input: {
   });
 
   const outfit = pickOutfit(result, avoided);
-  const product = pickMarketplaceMatch(outfit, weather);
+  const product = pickMarketplaceMatch(outfit, weather, products);
   const nextContext: ChatContext = {
     ...context,
     lastOutfitItemIds: outfit?.items ?? [],

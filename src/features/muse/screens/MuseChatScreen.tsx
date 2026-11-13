@@ -34,14 +34,15 @@ import {
 } from '@/features/muse/services/museChat';
 import { resolveLiveWeather } from '@/features/muse/services/liveWeather';
 import { sendOutfitFeedback } from '@/features/muse/services/museApi';
-import { shopProductById, type ShopProduct } from '@/features/shop/data/catalog';
+import { catalogProductById } from '@/features/catalog/api';
+import { formatPrice, type CatalogProduct } from '@/features/catalog/types';
 
 type Message = {
   id: number;
   from: 'user' | 'muse';
   text: string;
   outfit?: ChatOutfitPayload;
-  product?: ShopProduct;
+  product?: CatalogProduct;
 };
 
 const OCCASIONS: { label: string; value: ChatContext['occasion'] }[] = [
@@ -76,7 +77,7 @@ function weatherLabel(weather: ChatContext['weather']) {
 export default function MuseChatScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
-  const listRef = useRef<ScrollView>(null);
+  const listRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const nextMessageId = useRef(2);
   const autoStarted = useRef(false);
 
@@ -388,7 +389,7 @@ export default function MuseChatScreen() {
     const pieces: Array<{
       role: string;
       garment?: ClosetGarment;
-      market?: ShopProduct;
+      market?: CatalogProduct;
     }> = [];
     const seen = new Set<string>();
     for (const role of order) {
@@ -396,12 +397,12 @@ export default function MuseChatScreen() {
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const garment = garmentById.get(id);
-      const market = !garment ? shopProductById(id) : undefined;
+      const market = !garment ? catalogProductById(id) : undefined;
       pieces.push({ role, garment, market });
     }
     for (const item of payload.outfit.marketplace_items ?? []) {
       if (seen.has(item.product_id)) continue;
-      const market = shopProductById(item.product_id);
+      const market = catalogProductById(item.product_id);
       if (!market) continue;
       seen.add(item.product_id);
       pieces.push({ role: item.role ?? 'accessory', market });
@@ -514,7 +515,7 @@ export default function MuseChatScreen() {
                       </View>
                       <View style={styles.outfitRow}>
                         {outfitPieces(message.outfit).map((piece, index) =>
-                          piece.market?.image_url && !piece.garment ? (
+                          piece.market?.imageUrl && !piece.garment ? (
                             <View
                               key={`${message.outfit!.outfit.outfit_id}-${piece.role}-${index}`}
                               style={[
@@ -528,7 +529,7 @@ export default function MuseChatScreen() {
                                 },
                               ]}>
                               <Image
-                                source={{ uri: piece.market.image_url }}
+                                source={{ uri: piece.market.imageUrl ?? undefined }}
                                 style={styles.marketTileImage}
                                 resizeMode="cover"
                               />
@@ -578,13 +579,13 @@ export default function MuseChatScreen() {
                       onPress={() =>
                         Alert.alert(
                           message.product!.name,
-                          `${message.product!.brand} · $${message.product!.price}\nSuggested to complete this Muse look.`,
+                          `${message.product!.brandName} · ${formatPrice(message.product!.price) || 'Price on request'}\nSuggested to complete this Muse look.`,
                         )
                       }>
                       <View style={styles.productImage}>
-                        {message.product.image_url ? (
+                        {message.product.imageUrl ? (
                           <Image
-                            source={{ uri: message.product.image_url }}
+                            source={{ uri: message.product.imageUrl }}
                             style={styles.productPhoto}
                             resizeMode="cover"
                           />
@@ -599,9 +600,9 @@ export default function MuseChatScreen() {
                           <Text style={styles.productName} numberOfLines={2}>
                             {message.product.name}
                           </Text>
-                          <Text style={styles.productPrice}>${message.product.price}</Text>
+                          <Text style={styles.productPrice}>{formatPrice(message.product.price)}</Text>
                         </View>
-                        <Text style={styles.productBrand}>{message.product.brand}</Text>
+                        <Text style={styles.productBrand}>{message.product.brandName}</Text>
                         <View style={styles.productButtons}>
                           {(message.product.category === 'Shoes' ||
                             message.product.category === 'Bags') && (

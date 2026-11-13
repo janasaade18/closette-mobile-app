@@ -17,6 +17,9 @@ export type ClosetteUserProfile = {
   preferred_clothing: string[];
   common_occasions: string[];
   onboarding_completed_at: string | null;
+  role: 'admin' | 'user';
+  disabled_at: string | null;
+  must_change_password: boolean;
   created_at: string;
   updated_at: string;
 };

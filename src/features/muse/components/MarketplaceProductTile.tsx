@@ -1,10 +1,19 @@
-import { Image, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 
 import { Colors, Typeface } from '@/constants/theme';
-import type { MarketplaceProduct } from '@/features/muse/data/marketplaceCatalog';
+import { formatPrice } from '@/features/catalog/types';
+
+type TileProduct = {
+  name: string;
+  brand: string;
+  price: number | null;
+  image_url?: string | null;
+  in_stock?: boolean;
+};
 
 type Props = {
-  product: MarketplaceProduct;
+  product: TileProduct;
   badge?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -24,7 +33,9 @@ export function MarketplaceProductTile({
       onPress={onPress}
       style={[styles.tile, compact && styles.tileCompact, style]}>
       <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
-        <Image source={{ uri: product.image_url }} style={styles.image} resizeMode="cover" />
+        {product.image_url ? (
+          <Image source={{ uri: product.image_url }} style={styles.image} contentFit="cover" />
+        ) : null}
         {badge ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{badge}</Text>
@@ -42,7 +53,7 @@ export function MarketplaceProductTile({
       <Text style={styles.name} numberOfLines={2}>
         {product.name}
       </Text>
-      <Text style={styles.price}>${product.price}</Text>
+      {product.price != null ? <Text style={styles.price}>{formatPrice(product.price)}</Text> : null}
     </Pressable>
   );
 }
@@ -83,7 +94,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   soldOut: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(18, 38, 63, 0.45)',
