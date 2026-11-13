@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -33,8 +34,7 @@ import {
 } from '@/features/muse/services/museChat';
 import { resolveLiveWeather } from '@/features/muse/services/liveWeather';
 import { sendOutfitFeedback } from '@/features/muse/services/museApi';
-import ShopProductIllustration from '@/features/shop/components/ShopProductIllustration';
-import type { ShopProduct } from '@/features/shop/data/products';
+import { shopProductById, type ShopProduct } from '@/features/shop/data/catalog';
 
 type Message = {
   id: number;
@@ -385,15 +385,28 @@ export default function MuseChatScreen() {
   const outfitPieces = (payload: ChatOutfitPayload) => {
     const roles = payload.outfit.roles ?? {};
     const order = ['top', 'one_piece', 'bottom', 'outerwear', 'footwear', 'accessory'];
-    const pieces: Array<{ role: string; garment?: ClosetGarment }> = [];
+    const pieces: Array<{
+      role: string;
+      garment?: ClosetGarment;
+      market?: ShopProduct;
+    }> = [];
     const seen = new Set<string>();
     for (const role of order) {
       const id = roles[role];
       if (!id || seen.has(id)) continue;
       seen.add(id);
-      pieces.push({ role, garment: garmentById.get(id) });
+      const garment = garmentById.get(id);
+      const market = !garment ? shopProductById(id) : undefined;
+      pieces.push({ role, garment, market });
     }
-    return pieces.slice(0, 3);
+    for (const item of payload.outfit.marketplace_items ?? []) {
+      if (seen.has(item.product_id)) continue;
+      const market = shopProductById(item.product_id);
+      if (!market) continue;
+      seen.add(item.product_id);
+      pieces.push({ role: item.role ?? 'accessory', market });
+    }
+    return pieces.slice(0, 4);
   };
 
   return (
@@ -424,7 +437,7 @@ export default function MuseChatScreen() {
           </View>
           <View style={styles.heading}>
             <Text style={styles.title}>Muse</Text>
-            <Text style={styles.subtitle}>Styling from your closet</Text>
+            <Text style={styles.subtitle}>Closet + marketplace</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -500,20 +513,44 @@ export default function MuseChatScreen() {
                         </View>
                       </View>
                       <View style={styles.outfitRow}>
-                        {outfitPieces(message.outfit).map((piece, index) => (
-                          <GarmentCutoutTile
-                            key={`${message.outfit!.outfit.outfit_id}-${piece.role}-${index}`}
-                            garment={piece.garment}
-                            role={piece.role}
-                            background={
-                              index % 2 === 0
-                                ? Colors.light.softBlue
-                                : Colors.light.sand
-                            }
-                            compact
-                            style={styles.itemTile}
-                          />
-                        ))}
+                        {outfitPieces(message.outfit).map((piece, index) =>
+                          piece.market?.image_url && !piece.garment ? (
+                            <View
+                              key={`${message.outfit!.outfit.outfit_id}-${piece.role}-${index}`}
+                              style={[
+                                styles.itemTile,
+                                styles.marketTile,
+                                {
+                                  backgroundColor:
+                                    index % 2 === 0
+                                      ? Colors.light.softBlue
+                                      : Colors.light.sand,
+                                },
+                              ]}>
+                              <Image
+                                source={{ uri: piece.market.image_url }}
+                                style={styles.marketTileImage}
+                                resizeMode="cover"
+                              />
+                              <View style={styles.marketBadge}>
+                                <Text style={styles.marketBadgeText}>Shop</Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <GarmentCutoutTile
+                              key={`${message.outfit!.outfit.outfit_id}-${piece.role}-${index}`}
+                              garment={piece.garment}
+                              role={piece.role}
+                              background={
+                                index % 2 === 0
+                                  ? Colors.light.softBlue
+                                  : Colors.light.sand
+                              }
+                              compact
+                              style={styles.itemTile}
+                            />
+                          ),
+                        )}
                       </View>
                       <View style={styles.cardActions}>
                         <Pressable
@@ -541,36 +578,50 @@ export default function MuseChatScreen() {
                       onPress={() =>
                         Alert.alert(
                           message.product!.name,
-                          `${message.product!.brand} · $${message.product!.price}`,
+                          `${message.product!.brand} · $${message.product!.price}\nSuggested to complete this Muse look.`,
                         )
                       }>
                       <View style={styles.productImage}>
-                        <View style={styles.productIllustration}>
-                          <ShopProductIllustration item={message.product} />
+                        {message.product.image_url ? (
+                          <Image
+                            source={{ uri: message.product.image_url }}
+                            style={styles.productPhoto}
+                            resizeMode="cover"
+                          />
+                        ) : null}
+                        <View style={styles.shopTag}>
+                          <Text style={styles.shopTagText}>Marketplace</Text>
                         </View>
                       </View>
                       <View style={styles.productInfo}>
+                        <Text style={styles.productEyebrow}>Pairs with this outfit</Text>
                         <View style={styles.productNameRow}>
-                          <Text style={styles.productName}>{message.product.name}</Text>
+                          <Text style={styles.productName} numberOfLines={2}>
+                            {message.product.name}
+                          </Text>
                           <Text style={styles.productPrice}>${message.product.price}</Text>
                         </View>
+                        <Text style={styles.productBrand}>{message.product.brand}</Text>
                         <View style={styles.productButtons}>
-                          <Pressable
-                            style={styles.productTry}
-                            onPress={() =>
-                              router.push({
-                                pathname: '/miroir',
-                                params: {
-                                  product: message.product!.name,
-                                  price: String(message.product!.price),
-                                  category: message.product!.category,
-                                  source: 'brand',
-                                  returnTo: '/muse-chat',
-                                },
-                              })
-                            }>
-                            <Text style={styles.tryText}>Try on</Text>
-                          </Pressable>
+                          {(message.product.category === 'Shoes' ||
+                            message.product.category === 'Bags') && (
+                            <Pressable
+                              style={styles.productTry}
+                              onPress={() =>
+                                router.push({
+                                  pathname: '/miroir',
+                                  params: {
+                                    product: message.product!.name,
+                                    price: String(message.product!.price),
+                                    category: message.product!.category,
+                                    source: 'brand',
+                                    returnTo: '/muse-chat',
+                                  },
+                                })
+                              }>
+                              <Text style={styles.tryText}>Try on</Text>
+                            </Pressable>
+                          )}
                           <Pressable
                             style={styles.buyButton}
                             onPress={() =>
@@ -596,7 +647,7 @@ export default function MuseChatScreen() {
                 <ActivityIndicator color={Colors.light.onPrimary} size="small" />
               </View>
               <View style={styles.assistantBubble}>
-                <Text style={styles.assistantText}>Styling from your closet…</Text>
+                <Text style={styles.assistantText}>Styling from closet + shop…</Text>
               </View>
             </View>
           ) : null}
@@ -820,7 +871,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   outfitRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  itemTile: { height: 72, flex: 1, borderRadius: 23 },
+  itemTile: { height: 72, flex: 1, borderRadius: 23, overflow: 'hidden' },
+  marketTile: { position: 'relative' },
+  marketTileImage: { width: '100%', height: '100%' },
+  marketBadge: {
+    position: 'absolute',
+    left: 6,
+    top: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: Colors.light.primary,
+  },
+  marketBadgeText: {
+    color: Colors.light.onPrimary,
+    fontFamily: Typeface.bodyStrong,
+    fontSize: 10,
+  },
   cardActions: { flexDirection: 'row', gap: 8 },
   secondaryAction: {
     height: 43,
@@ -858,22 +925,42 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundElement,
   },
   productImage: {
-    width: 86,
-    height: 72,
+    width: 96,
+    height: 108,
     borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
     backgroundColor: Colors.light.softBlue,
   },
-  productIllustration: { transform: [{ scale: 0.72 }] },
-  productInfo: { flex: 1, justifyContent: 'space-between' },
+  productPhoto: { width: '100%', height: '100%' },
+  shopTag: {
+    position: 'absolute',
+    left: 7,
+    top: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: Colors.light.primary,
+  },
+  shopTagText: {
+    color: Colors.light.onPrimary,
+    fontFamily: Typeface.bodyStrong,
+    fontSize: 10,
+  },
+  productInfo: { flex: 1, justifyContent: 'space-between', paddingVertical: 2 },
+  productEyebrow: {
+    color: Colors.light.textSecondary,
+    fontFamily: Typeface.body,
+    fontSize: 11,
+    marginBottom: 2,
+  },
   productNameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   productName: {
+    flex: 1,
     color: Colors.light.primary,
     fontFamily: Typeface.bodyStrong,
     fontSize: 15,
@@ -882,6 +969,13 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontFamily: Typeface.body,
     fontSize: 15,
+  },
+  productBrand: {
+    color: Colors.light.textSecondary,
+    fontFamily: Typeface.body,
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 6,
   },
   productButtons: { flexDirection: 'row', gap: 7 },
   productTry: {
