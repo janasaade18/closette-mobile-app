@@ -28,7 +28,7 @@ import {
   marketplaceProductById,
 } from '@/features/muse/data/marketplaceCatalog';
 import {
-  DEMO_MARKETPLACE_PRODUCTS,
+  marketplaceProductsForGender,
   museBaseUrl,
   packTravel,
   rankingSummary,
@@ -194,7 +194,9 @@ export default function MuseScreen() {
           ],
           luggage: { max_items: 12, prefer_rewear: true, max_core_reuses: 1 },
           marketplace,
-          marketplaceProducts: marketplaceOn ? DEMO_MARKETPLACE_PRODUCTS : undefined,
+          marketplaceProducts: marketplaceOn
+            ? marketplaceProductsForGender(profile?.gender)
+            : undefined,
           profile,
         });
         setTravel(packed);
@@ -209,7 +211,9 @@ export default function MuseScreen() {
           limit: 3,
           profile,
           marketplace,
-          marketplaceProducts: marketplaceOn ? DEMO_MARKETPLACE_PRODUCTS : undefined,
+          marketplaceProducts: marketplaceOn
+            ? marketplaceProductsForGender(profile?.gender)
+            : undefined,
         });
         setResult(next);
         setTravel(null);
@@ -232,6 +236,7 @@ export default function MuseScreen() {
     occasion,
     weather.temperature_c,
     weather.condition,
+    profile?.gender,
     profile?.preferred_styles?.join('|'),
     profile?.preferred_colors?.join('|'),
     profile?.preferred_clothing?.join('|'),
@@ -455,7 +460,7 @@ export default function MuseScreen() {
     if (result?.status === 'weather_unsuitable') {
       return (
         result.message ??
-        'Not recommended for this weather — nothing in your closet fits. Try another temperature or add better pieces.'
+        'No full look from your closet for this weather. Turn Market on to fill gaps from partner brands.'
       );
     }
     if (result?.status === 'insufficient_candidates') {
@@ -466,14 +471,13 @@ export default function MuseScreen() {
     return null;
   })();
 
+  // Prefer showing marketplace fills over nagging copy — only tip when Market is off.
   const weatherWarning =
-    result?.status === 'weather_compromise'
+    !marketplaceOn &&
+    result?.status === 'weather_compromise' &&
+    result.message
       ? result.message
-      : result?.weather?.advice && result?.warnings?.some((w) =>
-          typeof w === 'object' && w?.code === 'weather_excluded_items',
-        )
-        ? result.weather.advice
-        : null;
+      : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -838,8 +842,7 @@ export default function MuseScreen() {
                 <>
                   <Text style={styles.moreTitle}>Partner catalog</Text>
                   <Text style={styles.catalogHint}>
-                    Muse can mix these into your looks when Market is on. Try 18° rain
-                    without a jacket in your closet.
+                    Muse pulls from this catalog when your closet is missing a piece.
                   </Text>
                   <ScrollView
                     horizontal

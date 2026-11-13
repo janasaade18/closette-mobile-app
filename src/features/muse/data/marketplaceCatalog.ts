@@ -1,5 +1,6 @@
 import type { MuseGarment } from '@/features/muse/services/museApi';
 import {
+  catalogForGender,
   shopCatalog,
   shopProductById,
   toMuseMarketplaceProducts,
@@ -15,6 +16,10 @@ export function marketplaceProductById(id: string) {
   return shopProductById(id);
 }
 
-export function museMarketplaceProducts(): MuseGarment[] {
-  return toMuseMarketplaceProducts();
+export function museMarketplaceProducts(gender?: string | null): MuseGarment[] {
+  return toMuseMarketplaceProducts(gender);
+}
+
+export function marketplaceCatalogForGender(gender?: string | null) {
+  return catalogForGender(gender);
 }

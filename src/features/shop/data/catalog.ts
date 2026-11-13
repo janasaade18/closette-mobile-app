@@ -20,6 +20,8 @@ export type ShopProduct = {
   subcategory: string;
   museCategory: MuseGarment['category'];
   formality: string;
+  /** male | female | unisex — Muse filters marketplace by profile gender. */
+  gender: 'male' | 'female' | 'unisex';
   colors: { primary: string; secondary?: string[] };
   style_tags: string[];
   sizes: string[];
@@ -41,13 +43,15 @@ const BRAND_MARK: Record<string, string> = {
 };
 
 function product(
-  partial: Omit<ShopProduct, 'mark' | 'tile' | 'in_stock'> & {
+  partial: Omit<ShopProduct, 'mark' | 'tile' | 'in_stock' | 'gender'> & {
     in_stock?: boolean;
     tile?: string;
+    gender?: ShopProduct['gender'];
   },
 ): ShopProduct {
   return {
     in_stock: true,
+    gender: 'unisex',
     tile: Colors.light.softBlue,
     mark: BRAND_MARK[partial.brand] ?? partial.brand.slice(0, 1),
     ...partial,
@@ -140,6 +144,7 @@ export const shopCatalog: ShopProduct[] = [
     subcategory: 'heels',
     museCategory: 'footwear',
     formality: 'formal',
+    gender: 'female',
     colors: { primary: 'black' },
     style_tags: ['elegant'],
     sizes: ['36', '37', '38', '39'],
@@ -228,6 +233,7 @@ export const shopCatalog: ShopProduct[] = [
     subcategory: 'blouse',
     museCategory: 'tops',
     formality: 'smart-casual',
+    gender: 'female',
     colors: { primary: 'beige' },
     style_tags: ['elegant', 'classic'],
     sizes: ['XS', 'S', 'M', 'L'],
@@ -334,6 +340,7 @@ export const shopCatalog: ShopProduct[] = [
     subcategory: 'skirt',
     museCategory: 'bottoms',
     formality: 'smart-casual',
+    gender: 'female',
     colors: { primary: 'navy' },
     style_tags: ['classic', 'elegant'],
     sizes: ['XS', 'S', 'M', 'L'],
@@ -380,19 +387,20 @@ export const shopCatalog: ShopProduct[] = [
   }),
   product({
     id: 'mkt-blazer-01',
-    name: 'Navy Work Blazer',
+    name: 'Navy Soft Blazer',
     price: 160,
     brand: 'Line',
     category: 'Outerwear',
     subcategory: 'blazer',
     museCategory: 'outerwear',
-    formality: 'work',
+    formality: 'smart-casual',
     colors: { primary: 'navy' },
     style_tags: ['classic', 'smart'],
     sizes: ['S', 'M', 'L'],
     temperature_range_c: { min_c: 5, max_c: 22 },
+    // Single blazer still — not a three-piece suit shoot.
     image_url:
-      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1593032465175-481ac7f401a0?auto=format&fit=crop&w=900&q=80',
     kind: 'outer',
   }),
   product({
@@ -423,6 +431,7 @@ export const shopCatalog: ShopProduct[] = [
     subcategory: 'dress',
     museCategory: 'one-piece',
     formality: 'formal',
+    gender: 'female',
     colors: { primary: 'black' },
     style_tags: ['elegant'],
     sizes: ['XS', 'S', 'M'],
@@ -435,6 +444,7 @@ export const shopCatalog: ShopProduct[] = [
     id: 'mkt-dress-02',
     name: 'Sun Linen Dress',
     price: 98,
+    gender: 'female',
     brand: 'Orbit',
     category: 'Dresses',
     subcategory: 'dress',
@@ -634,25 +644,44 @@ export function shopProductById(id: string) {
   return shopCatalog.find((item) => item.id === id);
 }
 
+function normalizeGender(value?: string | null): 'male' | 'female' | 'unisex' | null {
+  if (!value) return null;
+  const raw = value.trim().toLowerCase();
+  if (['male', 'man', 'men', 'masculine', 'm'].includes(raw)) return 'male';
+  if (['female', 'woman', 'women', 'feminine', 'f'].includes(raw)) return 'female';
+  if (['unisex', 'all', 'any', 'nonbinary', 'non-binary', 'nb'].includes(raw)) {
+    return 'unisex';
+  }
+  return null;
+}
+
+export function catalogForGender(gender?: string | null): ShopProduct[] {
+  const g = normalizeGender(gender);
+  return shopCatalog.filter((item) => {
+    if (!item.in_stock) return false;
+    if (!g || g === 'unisex') return true;
+    return item.gender === 'unisex' || item.gender === g;
+  });
+}
+
 /** Muse-ready marketplace payload from the same ecommerce catalog. */
-export function toMuseMarketplaceProducts(): MuseGarment[] {
-  return shopCatalog
-    .filter((item) => item.in_stock)
-    .map((item) => ({
-      id: item.id,
-      name: item.name,
-      category: item.museCategory,
-      subcategory: item.subcategory,
-      colors: item.colors,
-      formality: item.formality,
-      style_tags: item.style_tags,
-      price: item.price,
-      currency: 'USD',
-      sizes: item.sizes,
-      brand: item.brand,
-      in_stock: item.in_stock,
-      source: 'marketplace' as const,
-      temperature_range_c: item.temperature_range_c,
-      image_url: item.image_url,
-    }));
+export function toMuseMarketplaceProducts(gender?: string | null): MuseGarment[] {
+  return catalogForGender(gender).map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.museCategory,
+    subcategory: item.subcategory,
+    colors: item.colors,
+    formality: item.formality,
+    style_tags: item.style_tags,
+    price: item.price,
+    currency: 'USD',
+    sizes: item.sizes,
+    brand: item.brand,
+    in_stock: item.in_stock,
+    source: 'marketplace' as const,
+    gender: item.gender,
+    temperature_range_c: item.temperature_range_c,
+    image_url: item.image_url,
+  }));
 }

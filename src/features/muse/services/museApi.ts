@@ -30,6 +30,7 @@ export type MuseGarment = {
   brand?: string;
   name?: string;
   in_stock?: boolean;
+  gender?: string;
   temperature_range_c?: { min_c?: number; max_c?: number };
   image_url?: string;
 };
@@ -270,6 +271,7 @@ export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
 export function buildMuseProfile(profile: ClosetteUserProfile | null) {
   if (!profile) return undefined;
   return {
+    gender: profile.gender ?? undefined,
     preferred_styles: profile.preferred_styles ?? [],
     favorite_colors: (profile.preferred_colors ?? []).map((c) =>
       c.trim().toLowerCase(),
@@ -409,4 +411,8 @@ export async function packTravel(input: {
 
 /** Photo-backed demo catalog — see `marketplaceCatalog.ts`. */
 export const DEMO_MARKETPLACE_PRODUCTS = museMarketplaceProducts();
+
+export function marketplaceProductsForGender(gender?: string | null) {
+  return museMarketplaceProducts(gender);
+}
 

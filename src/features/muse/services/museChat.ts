@@ -1,14 +1,9 @@
 import type { ClosetteUserProfile } from '@/features/auth/types';
 import type { ClosetGarment } from '@/features/closet/types';
-import {
-  shopCatalog,
-  shopProductById,
-  toMuseMarketplaceProducts,
-  type ShopProduct,
-} from '@/features/shop/data/catalog';
+import { shopCatalog, shopProductById, type ShopProduct } from '@/features/shop/data/catalog';
 
 import {
-  DEMO_MARKETPLACE_PRODUCTS,
+  marketplaceProductsForGender,
   recommendOutfits,
   type MuseOccasion,
   type MuseOutfit,
@@ -162,30 +157,36 @@ function pickMarketplaceMatch(
     (item.category ?? '').toLowerCase().includes('footwear'),
   );
 
-  if (wantsScarf || (cool && !hasOuter)) {
-    const outer =
-      shopCatalog.find((p) => p.id === 'mkt-raincoat-01') ??
-      shopCatalog.find((p) => p.category === 'Outerwear' && p.in_stock);
-    if (outer && (wantsJacket || cool)) return outer;
-    const scarf = shopCatalog.find((p) => p.subcategory === 'scarf' && p.in_stock);
-    if (scarf) return scarf;
+  const pool = shopCatalog.filter((p) => p.in_stock);
+
+  if (cool && !hasOuter) {
+    if (weather.condition === 'rain') {
+      return (
+        pool.find((p) => p.id === 'mkt-raincoat-01') ??
+        pool.find((p) => p.subcategory === 'jacket')
+      );
+    }
+    return (
+      pool.find((p) => p.id === 'mkt-jacket-01') ??
+      pool.find((p) => p.category === 'Outerwear' && p.formality !== 'formal')
+    );
   }
 
   if (wantsJacket) {
-    return shopCatalog.find((p) => p.category === 'Outerwear' && p.in_stock);
+    return pool.find((p) => p.subcategory === 'jacket' || p.subcategory === 'raincoat');
+  }
+  if (wantsScarf) {
+    return pool.find((p) => p.subcategory === 'scarf');
   }
   if (wantsShoes || (result.status === 'insufficient_candidates' && !hasFootwear)) {
-    return shopCatalog.find((p) => p.category === 'Shoes' && p.in_stock);
+    return pool.find((p) => p.category === 'Shoes');
   }
 
-  // Always surface one partner complement that fits the look when Market is on.
+  // Last resort complement — still show a product when possible.
   if (cool) {
-    return (
-      shopCatalog.find((p) => p.id === 'mkt-jacket-01') ??
-      shopCatalog.find((p) => p.subcategory === 'scarf')
-    );
+    return pool.find((p) => p.subcategory === 'scarf') ?? pool.find((p) => p.category === 'Outerwear');
   }
-  return shopCatalog.find((p) => p.id === 'mkt-bag-01') ?? shopCatalog.find((p) => p.in_stock);
+  return pool.find((p) => p.id === 'mkt-bag-01') ?? pool[0];
 }
 
 export async function replyToMuseChat(input: {
@@ -215,9 +216,7 @@ export async function replyToMuseChat(input: {
   }
 
   const override = preferenceOverride(text, input.profile);
-  const catalog = DEMO_MARKETPLACE_PRODUCTS.length
-    ? DEMO_MARKETPLACE_PRODUCTS
-    : toMuseMarketplaceProducts();
+  const catalog = marketplaceProductsForGender(input.profile?.gender);
 
   const result = await recommendOutfits({
     userId: input.userId,
@@ -240,14 +239,13 @@ export async function replyToMuseChat(input: {
   const product = pickMarketplaceMatch(outfit, result, input.wardrobe, text, weather);
 
   if (!outfit) {
+    // Text is last resort — only when neither closet nor market can complete a look.
     return {
-      text:
-        result.status === 'insufficient_candidates'
-          ? 'I need a top, bottom, and shoes (or a one-piece and shoes). I can fill gaps from the marketplace once those cores exist.'
-          : result.status === 'weather_unsuitable'
-            ? result.message ??
-              'Nothing in your closet fits this weather. Browse the marketplace for a layer that would help.'
-            : 'I could not build an outfit from the current closet and filters. Try another occasion or add more pieces.',
+      text: product
+        ? `I could not finish a full look from your closet. ${product.brand} ${product.name} from the marketplace is the closest fill.`
+        : result.status === 'insufficient_candidates'
+          ? 'I need at least a top, bottom, and shoes in your closet before I can style you.'
+          : 'I could not build an outfit from your closet or the marketplace for these filters.',
       context,
       product,
       status: result.status,
@@ -262,19 +260,10 @@ export async function replyToMuseChat(input: {
   const weatherBit = `${temp}${condition}`.trim();
   const mixed = Boolean(outfit.mixed || outfit.marketplace_items?.length);
 
-  let textReply = mixed
-    ? `Here is a look mixing your closet with the marketplace for ${context.occasionLabel.toLowerCase()}`
-    : `Here is an outfit from your closet for ${context.occasionLabel.toLowerCase()}`;
+  // Show, don't lecture — keep copy short; the product card carries the shop piece.
+  let textReply = `Here is a ${context.occasionLabel.toLowerCase()} look`;
   if (weatherBit) textReply += ` · ${weatherBit}`;
-  textReply += '.';
-  if (outfit.reasons?.length) {
-    textReply += ` ${outfit.reasons[0]}`;
-  }
-  if (product) {
-    textReply += mixed
-      ? ` I added ${product.brand} ${product.name} from the shop.`
-      : ` Pair it with ${product.brand} ${product.name} from the marketplace.`;
-  }
+  textReply += mixed ? ', with a marketplace piece in the mix.' : '.';
 
   return {
     text: textReply,
@@ -293,8 +282,8 @@ export async function replyToMuseChat(input: {
 export const MUSE_CHAT_STARTERS = [
   'Make it dressier',
   'Swap the shoes',
-  'Add a jacket',
-  "What's good for a rainy uni day?",
+  'Something for rain',
+  'Keep it casual',
 ];
 
 export const DEFAULT_CHAT_CONTEXT: ChatContext = {
