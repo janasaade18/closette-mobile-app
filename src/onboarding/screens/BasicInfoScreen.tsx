@@ -14,8 +14,12 @@ import {
 import { Colors, Typeface } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import OnboardingHeader from '@/onboarding/components/OnboardingHeader';
+import PreferenceChip from '@/onboarding/components/PreferenceChip';
 import PrimaryButton from '@/onboarding/components/PrimaryButton';
 import { useOnboarding } from '@/onboarding/OnboardingContext';
+
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+const AGE_RANGES = ['16-18', '19-24', '25-34', '35-44', '45+'];
 
 interface BasicInfoScreenProps {
   onContinue: () => void;
@@ -50,6 +54,9 @@ export default function BasicInfoScreen({
   );
   const [location, setLocation] = useState(preferences.location ?? '');
   const [photoUri, setPhotoUri] = useState(preferences.photoUri);
+  const [gender, setGender] = useState(preferences.gender ?? '');
+  const [ageRange, setAgeRange] = useState(preferences.ageRange ?? '');
+
 
   useEffect(() => {
     const next = resolveDisplayName(
@@ -85,8 +92,8 @@ export default function BasicInfoScreen({
       name,
       location,
       photoUri,
-      ageRange: preferences.ageRange,
-      gender: preferences.gender,
+      ageRange: ageRange || undefined,
+      gender: gender || undefined,
       preferredUnits: preferences.preferredUnits ?? 'Metric (cm / kg)',
     });
     onContinue();
@@ -98,7 +105,7 @@ export default function BasicInfoScreen({
       <OnboardingHeader
         step={1}
         title="Let's meet you"
-        subtitle="Your name and city help Closette greet you and read your local weather."
+        subtitle="Name, gender, and city — Muse uses these from day one for weather and shop picks."
         onBack={onBack}
       />
 
@@ -139,6 +146,30 @@ export default function BasicInfoScreen({
           value={location}
           onChangeText={setLocation}
         />
+
+        <Text style={styles.label}>Gender</Text>
+        <View style={styles.chips}>
+          {GENDERS.map((option) => (
+            <PreferenceChip
+              key={option}
+              label={option}
+              selected={gender === option}
+              onPress={() => setGender(option)}
+            />
+          ))}
+        </View>
+
+        <Text style={styles.label}>Age range</Text>
+        <View style={styles.chips}>
+          {AGE_RANGES.map((option) => (
+            <PreferenceChip
+              key={option}
+              label={option}
+              selected={ageRange === option}
+              onPress={() => setAgeRange(option)}
+            />
+          ))}
+        </View>
       </ScrollView>
 
       <PrimaryButton title="Continue" onPress={handleContinue} />
@@ -231,5 +262,10 @@ const styles = StyleSheet.create({
     fontFamily: Typeface.body,
     color: Colors.light.text,
     backgroundColor: Colors.light.backgroundElement,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
 });
