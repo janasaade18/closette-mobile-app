@@ -135,7 +135,9 @@ function pickShopGap(
     return shopProducts.find((product) => product.category === 'Shoes');
   }
   if (wantsShoes) {
-    return shopProducts.find((product) => product.name === 'Cloud') ?? shopProducts[0];
+    return (
+      shopProducts.find((product) => product.name === 'Cloud Runner') ?? shopProducts[0]
+    );
   }
   return undefined;
 }
