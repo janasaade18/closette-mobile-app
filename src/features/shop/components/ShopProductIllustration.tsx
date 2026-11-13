@@ -4,10 +4,11 @@ import type { ShopProduct } from '@/features/shop/data/products';
 import { Colors } from '@/constants/theme';
 
 export default function ShopProductIllustration({ item, large = false }: { item: ShopProduct; large?: boolean }) {
-  if (item.kind === 'shoe') return <View style={[styles.shoe, large && styles.largeShoe]}><View style={[styles.shoeUpper, { backgroundColor: item.tone }]} /><View style={styles.shoeSole} /></View>;
-  if (item.kind === 'shirt') return <View style={[styles.shirt, { backgroundColor: item.tone }]}><View style={styles.shirtNeck} /></View>;
-  if (item.kind === 'pants') return <View style={styles.pants}><View style={[styles.pantLeg, { backgroundColor: item.tone }]} /><View style={[styles.pantLeg, { backgroundColor: item.tone }]} /></View>;
-  return <View style={[styles.bag, large && styles.largeBag, { backgroundColor: item.tone }]}><View style={styles.bagHandle} /></View>;
+  const tone = ('tone' in item && typeof item.tone === 'string' ? item.tone : null) ?? item.tile;
+  if (item.kind === 'shoe') return <View style={[styles.shoe, large && styles.largeShoe]}><View style={[styles.shoeUpper, { backgroundColor: tone }]} /><View style={styles.shoeSole} /></View>;
+  if (item.kind === 'shirt') return <View style={[styles.shirt, { backgroundColor: tone }]}><View style={styles.shirtNeck} /></View>;
+  if (item.kind === 'pants') return <View style={styles.pants}><View style={[styles.pantLeg, { backgroundColor: tone }]} /><View style={[styles.pantLeg, { backgroundColor: tone }]} /></View>;
+  return <View style={[styles.bag, large && styles.largeBag, { backgroundColor: tone }]}><View style={styles.bagHandle} /></View>;
 }
 
 const styles = StyleSheet.create({
