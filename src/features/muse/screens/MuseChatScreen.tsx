@@ -77,7 +77,7 @@ function weatherLabel(weather: ChatContext['weather']) {
 export default function MuseChatScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
-  const listRef = useRef<ScrollView>(null);
+  const listRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const nextMessageId = useRef(2);
   const autoStarted = useRef(false);
 

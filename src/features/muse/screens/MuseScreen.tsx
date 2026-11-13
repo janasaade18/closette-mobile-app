@@ -479,7 +479,7 @@ export default function MuseScreen() {
       return 'Need a top, bottom, and shoes (or a one-piece and shoes) in your closet.';
     }
     // weather_compromise still returns outfits — show them with a warning chip.
-    if (!featured && mode !== 'travel') return 'No outfits yet.';
+    if (!featured) return 'No outfits yet.';
     return null;
   })();
 
