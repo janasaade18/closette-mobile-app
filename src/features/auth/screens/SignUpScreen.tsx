@@ -27,6 +27,7 @@ export default function SignUpScreen({ onComplete, onSignIn }: SignUpScreenProps
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -114,7 +115,10 @@ export default function SignUpScreen({ onComplete, onSignIn }: SignUpScreenProps
           placeholderTextColor={Colors.light.textSecondary}
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="password"
           editable={!loading}
         />
 
@@ -125,9 +129,18 @@ export default function SignUpScreen({ onComplete, onSignIn }: SignUpScreenProps
           placeholderTextColor={Colors.light.textSecondary}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
-          secureTextEntry
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="password"
           editable={!loading}
         />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          onPress={() => setShowPassword((current) => !current)}>
+          <Text style={styles.signInBold}>{showPassword ? 'Hide passwords' : 'Show passwords'}</Text>
+        </TouchableOpacity>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         {info ? <Text style={styles.infoText}>{info}</Text> : null}

@@ -8,7 +8,7 @@ import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { fetchClients, resetClientPassword, setClientActive, type ClientRow } from '@/features/admin/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import { authErrorMessage } from '@/features/auth/userProfile';
-import { Field, PrimaryButton, StatusBlock } from '@/features/brands/components/FormKit';
+import { PasswordField, PrimaryButton, StatusBlock } from '@/features/brands/components/FormKit';
 
 export default function UserDetailScreen() {
   const router = useRouter();
@@ -50,7 +50,10 @@ export default function UserDetailScreen() {
     try {
       const result = await resetClientPassword(person.id, password);
       setPassword('');
-      Alert.alert('Password updated', `${result.ownerEmail ?? person.email}\nTemporary password: ${result.temporaryPassword}`);
+      Alert.alert(
+        'Password updated',
+        `${result.ownerEmail ?? person.email} can sign in with the password you typed. They will be asked to choose a new one.`,
+      );
     } catch (err) {
       setError(authErrorMessage(err));
     } finally {
@@ -101,7 +104,7 @@ export default function UserDetailScreen() {
             <Text style={styles.meta}>
               {person.role} · {person.disabled_at ? 'Inactive' : 'Active'} · joined {person.created_at.slice(0, 10)}
             </Text>
-            <Field label="New temporary password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+            <PasswordField label="New temporary password" value={password} onChangeText={setPassword} />
             <PrimaryButton label="Reset password" onPress={() => void resetPassword()} busy={busy} />
             <PrimaryButton
               label={person.disabled_at ? 'Activate user' : 'Deactivate user'}

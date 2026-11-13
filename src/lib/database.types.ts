@@ -23,6 +23,7 @@ export type UsersRow = {
   onboarding_completed_at: string | null;
   role: UserRole;
   disabled_at: string | null;
+  must_change_password: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -32,6 +33,14 @@ export type BrandRow = {
   name: string;
   description: string | null;
   logo_url: string | null;
+  cover_url: string | null;
+  website: string | null;
+  instagram: string | null;
+  contact_email: string | null;
+  phone: string | null;
+  city: string | null;
+  country: string | null;
+  category: string | null;
   owner_user_id: string;
   created_by: string | null;
   is_active: boolean;

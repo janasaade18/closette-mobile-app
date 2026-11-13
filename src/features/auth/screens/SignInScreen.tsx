@@ -25,6 +25,7 @@ export default function SignInScreen({ onComplete, onSignUp }: SignInScreenProps
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -75,15 +76,27 @@ export default function SignInScreen({ onComplete, onSignUp }: SignInScreenProps
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Your password"
-          placeholderTextColor={Colors.light.textSecondary}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!loading}
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={[styles.input, styles.passwordInput]}
+            placeholder="Your password"
+            placeholderTextColor={Colors.light.textSecondary}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="password"
+            editable={!loading}
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            onPress={() => setShowPassword((current) => !current)}
+            style={styles.eye}>
+            <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -155,6 +168,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 18,
   },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passwordInput: { flex: 1 },
+  eye: { minWidth: 44, alignItems: 'center' },
+  eyeText: { fontFamily: Typeface.bodyStrong, color: Colors.light.text, fontSize: 13 },
   input: {
     height: 54,
     borderWidth: 1,

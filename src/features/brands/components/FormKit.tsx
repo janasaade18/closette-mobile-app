@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -23,6 +23,42 @@ export function Field({
         {...input}
         style={[styles.input, input.multiline && styles.multiline, input.style]}
       />
+    </View>
+  );
+}
+
+export function PasswordField({
+  label,
+  value,
+  onChangeText,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const [hidden, setHidden] = useState(true);
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.passwordRow}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={hidden}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="password"
+          placeholderTextColor={Colors.light.textSecondary}
+          style={[styles.input, styles.passwordInput]}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+          onPress={() => setHidden((current) => !current)}
+          style={styles.eye}>
+          <Text style={styles.eyeText}>{hidden ? 'Show' : 'Hide'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -114,6 +150,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlignVertical: 'top',
   },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passwordInput: { flex: 1 },
+  eye: { paddingHorizontal: 4, minWidth: 44, alignItems: 'center' },
+  eyeText: { color: Colors.light.primary, fontFamily: Typeface.bodyStrong, fontSize: 13 },
   button: {
     height: 52,
     borderRadius: 26,

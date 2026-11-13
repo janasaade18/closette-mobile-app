@@ -26,6 +26,11 @@ export default function IndexRoute() {
       return;
     }
 
+    if (session && profile?.must_change_password) {
+      router.replace('/change-password');
+      return;
+    }
+
     if (session && profile?.onboarding_completed_at) {
       router.replace(roleHome(isAdmin, brandId));
       return;
@@ -61,7 +66,7 @@ export default function IndexRoute() {
     return (
       <SplashScreen
         onFinish={() => {
-          router.replace(roleHome(isAdmin, brandId));
+          router.replace(profile?.must_change_password ? '/change-password' : roleHome(isAdmin, brandId));
         }}
       />
     );

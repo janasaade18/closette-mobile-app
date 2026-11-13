@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { invokeFunction } from '@/features/auth/functions';
 import type { BrandRow } from '@/lib/database.types';
 
 export type ClientRow = {
@@ -10,23 +11,8 @@ export type ClientRow = {
   disabled_at: string | null;
 };
 
-async function invoke<T>(name: string, body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke<T & { error?: string }>(name, { body });
-  if (error) {
-    const response = 'context' in error ? error.context : null;
-    if (response instanceof Response) {
-      try {
-        const payload = (await response.json()) as { error?: string };
-        if (payload.error) throw new Error(payload.error);
-      } catch (parseError) {
-        if (parseError instanceof Error && parseError.message !== error.message) throw parseError;
-      }
-    }
-    throw new Error(error.message || 'Admin request failed.');
-  }
-  if (data?.error) throw new Error(data.error);
-  if (!data) throw new Error('Admin request failed.');
-  return data;
+function invoke<T>(name: string, body: Record<string, unknown>) {
+  return invokeFunction<T>(name, body);
 }
 
 export async function createBrandAccount(input: {
@@ -35,16 +21,8 @@ export async function createBrandAccount(input: {
   email: string;
   password: string;
 }) {
-  const data = await invoke<{
-    brand: BrandRow;
-    ownerEmail: string;
-    temporaryPassword: string;
-  }>('create-brand', input);
-  return {
-    brand: data.brand,
-    ownerEmail: data.ownerEmail,
-    temporaryPassword: data.temporaryPassword,
-  };
+  const data = await invoke<{ brand: BrandRow; ownerEmail: string }>('create-brand', input);
+  return { brand: data.brand, ownerEmail: data.ownerEmail };
 }
 
 export async function resetBrandPassword(brandId: string, password: string) {
@@ -55,14 +33,10 @@ export async function resetBrandPassword(brandId: string, password: string) {
     .maybeSingle();
   if (error) throw error;
   if (!brand?.owner_user_id) throw new Error('Brand not found.');
-  const result = await invoke<{ ownerEmail: string | null; temporaryPassword: string }>(
-    'reset-user-password',
-    { userId: brand.owner_user_id, password },
-  );
-  return {
-    ownerEmail: result.ownerEmail,
-    temporaryPassword: result.temporaryPassword,
-  };
+  return invoke<{ ownerEmail: string | null }>('reset-user-password', {
+    userId: brand.owner_user_id,
+    password,
+  });
 }
 
 export async function setBrandActive(brandId: string, isActive: boolean) {
@@ -78,7 +52,7 @@ export async function createClientAccount(input: {
   email: string;
   password: string;
 }) {
-  return invoke<{ user: ClientRow; temporaryPassword: string }>('create-user', input);
+  return invoke<{ user: ClientRow }>('create-user', input);
 }
 
 export async function setClientActive(userId: string, active: boolean) {
@@ -87,10 +61,23 @@ export async function setClientActive(userId: string, active: boolean) {
 }
 
 export async function resetClientPassword(userId: string, password: string) {
-  return invoke<{ ownerEmail: string | null; temporaryPassword: string }>('reset-user-password', {
-    userId,
-    password,
-  });
+  return invoke<{ ownerEmail: string | null }>('reset-user-password', { userId, password });
+}
+
+export async function fetchAdminStats() {
+  const [brands, users, products] = await Promise.all([
+    supabase.from('brands').select('id', { count: 'exact', head: true }),
+    supabase.from('users').select('id', { count: 'exact', head: true }),
+    supabase.from('brand_products').select('id', { count: 'exact', head: true }),
+  ]);
+  if (brands.error) throw brands.error;
+  if (users.error) throw users.error;
+  if (products.error) throw products.error;
+  return {
+    brands: brands.count ?? 0,
+    users: users.count ?? 0,
+    products: products.count ?? 0,
+  };
 }
 
 export async function fetchClients() {

@@ -7,7 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { authErrorMessage } from '@/features/auth/userProfile';
 import { resetBrandPassword, setBrandActive } from '@/features/brands/adminApi';
-import { Field, PrimaryButton, StatusBlock } from '@/features/brands/components/FormKit';
+import { Field, PasswordField, PrimaryButton, StatusBlock } from '@/features/brands/components/FormKit';
 import {
   deleteProduct,
   fetchBrand,
@@ -114,7 +114,7 @@ export default function BrandAdminDetailScreen() {
       setPassword('');
       Alert.alert(
         'Password updated',
-        `${result.ownerEmail ?? 'Brand login'}\nTemporary password: ${result.temporaryPassword}`,
+        `${result.ownerEmail ?? 'Brand login'} can sign in with the password you typed. They will be asked to choose a new one.`,
       );
     } catch (err) {
       setError(authErrorMessage(err));
@@ -174,13 +174,7 @@ export default function BrandAdminDetailScreen() {
               onPress={toggleActive}
               busy={busy}
             />
-            <Field
-              label="New temporary password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+            <PasswordField label="New temporary password" value={password} onChangeText={setPassword} />
             <PrimaryButton label="Reset password" onPress={() => void resetPassword()} busy={busy} />
             <Text style={styles.section}>Products</Text>
             {products.length === 0 ? <StatusBlock title="No products yet" /> : null}

@@ -7,7 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { createClientAccount } from '@/features/admin/api';
 import { authErrorMessage } from '@/features/auth/userProfile';
-import { Field, PrimaryButton } from '@/features/brands/components/FormKit';
+import { Field, PasswordField, PrimaryButton } from '@/features/brands/components/FormKit';
 
 export default function AddUserScreen() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function AddUserScreen() {
       const created = await createClientAccount({ name: name.trim(), email, password });
       Alert.alert(
         'User ready',
-        `${created.user.email}\nTemporary password: ${created.temporaryPassword}\nShare this once. It is not stored in the app.`,
+        `${created.user.email} can sign in with the password you typed. They will be asked to choose a new one. It is not stored in the app.`,
         [{ text: 'Done', onPress: () => router.back() }],
       );
     } catch (err) {
@@ -56,7 +56,7 @@ export default function AddUserScreen() {
         <Text style={styles.title}>Add user</Text>
         <Field label="Name" value={name} onChangeText={setName} />
         <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-        <Field label="Temporary password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+        <PasswordField label="Temporary password" value={password} onChangeText={setPassword} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label="Create user" onPress={() => void submit()} busy={busy} />
       </ScrollView>

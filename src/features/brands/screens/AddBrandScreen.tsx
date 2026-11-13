@@ -7,7 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { authErrorMessage } from '@/features/auth/userProfile';
 import { createBrandAccount } from '@/features/brands/adminApi';
-import { Field, PrimaryButton, ProgressLabel } from '@/features/brands/components/FormKit';
+import { Field, PasswordField, PrimaryButton, ProgressLabel } from '@/features/brands/components/FormKit';
 import { pickCatalogImage, updateBrandProfile } from '@/features/catalog/api';
 
 export default function AddBrandScreen() {
@@ -68,7 +68,7 @@ export default function AddBrandScreen() {
 
       Alert.alert(
         'Brand ready',
-        `${created.ownerEmail}\nTemporary password: ${created.temporaryPassword}\nShare this once. It is not stored in the app.`,
+        `${created.ownerEmail} can sign in with the password you typed. They will be asked to choose a new one. It is not stored in the app.`,
         [
           {
             text: 'Open brand',
@@ -111,13 +111,7 @@ export default function AddBrandScreen() {
           autoCorrect={false}
           keyboardType="email-address"
         />
-        <Field
-          label="Temporary password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+        <PasswordField label="Temporary password" value={password} onChangeText={setPassword} />
         <Pressable accessibilityRole="button" onPress={() => void chooseLogo()} style={styles.logoButton}>
           {logoUri ? (
             <Image source={{ uri: logoUri }} style={styles.logo} />

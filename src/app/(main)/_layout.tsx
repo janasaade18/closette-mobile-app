@@ -5,10 +5,12 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import { roleHome } from '@/features/auth/roleHome';
+import { usePasswordGate } from '@/features/auth/usePasswordGate';
 
 export default function MainLayout() {
   const router = useRouter();
   const { session, profile, loading, isAdmin, brandId } = useAuth();
+  usePasswordGate();
 
   useEffect(() => {
     if (loading) {
@@ -16,6 +18,9 @@ export default function MainLayout() {
     }
     if (!session) {
       router.replace('/sign-in');
+      return;
+    }
+    if (profile?.must_change_password) {
       return;
     }
     if (isAdmin || brandId) {
@@ -29,7 +34,7 @@ export default function MainLayout() {
     }
   }, [loading, session, profile, isAdmin, brandId, router]);
 
-  if (loading || !session || isAdmin || brandId) {
+  if (loading || !session || profile?.must_change_password || isAdmin || brandId) {
     return (
       <View style={styles.waiting}>
         <ActivityIndicator color={Colors.light.primary} />
