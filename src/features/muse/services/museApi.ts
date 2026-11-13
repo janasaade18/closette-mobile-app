@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 
 import type { ClosetteUserProfile } from '@/features/auth/types';
 import type { ClosetGarment } from '@/features/closet/types';
+import { museMarketplaceProducts } from '@/features/muse/data/marketplaceCatalog';
 
 export type MuseOccasion = 'casual' | 'smart-casual' | 'work' | 'formal' | string;
 
@@ -27,8 +28,10 @@ export type MuseGarment = {
   currency?: string;
   sizes?: string[];
   brand?: string;
+  name?: string;
   in_stock?: boolean;
   temperature_range_c?: { min_c?: number; max_c?: number };
+  image_url?: string;
 };
 
 export type MuseMarketplaceItem = {
@@ -36,11 +39,13 @@ export type MuseMarketplaceItem = {
   role?: string;
   category?: string;
   subcategory?: string;
+  name?: string | null;
   price?: number;
   currency?: string;
   brand?: string | null;
   sizes?: string[];
   colors?: { primary?: string; secondary?: string[] };
+  image_url?: string | null;
 };
 
 export type MuseOutfit = {
@@ -402,47 +407,6 @@ export async function packTravel(input: {
   return json;
 }
 
-/** Small demo catalog for local marketplace testing when Nest has no products API yet. */
-export const DEMO_MARKETPLACE_PRODUCTS: MuseGarment[] = [
-  {
-    id: 'mkt-sneaker-01',
-    category: 'footwear',
-    subcategory: 'sneakers',
-    colors: { primary: 'white', secondary: ['grey'] },
-    formality: 'casual',
-    style_tags: ['minimal'],
-    price: 78,
-    currency: 'USD',
-    sizes: ['40', '41', '42', '43'],
-    in_stock: true,
-    source: 'marketplace',
-    temperature_range_c: { min_c: 8, max_c: 34 },
-  },
-  {
-    id: 'mkt-blazer-01',
-    category: 'outerwear',
-    subcategory: 'blazer',
-    colors: { primary: 'navy' },
-    formality: 'work',
-    style_tags: ['classic'],
-    price: 160,
-    currency: 'USD',
-    sizes: ['S', 'M', 'L'],
-    in_stock: true,
-    source: 'marketplace',
-    temperature_range_c: { min_c: 5, max_c: 22 },
-  },
-  {
-    id: 'mkt-scarf-01',
-    category: 'accessories',
-    subcategory: 'scarf',
-    colors: { primary: 'olive' },
-    formality: 'casual',
-    price: 45,
-    currency: 'USD',
-    sizes: ['OS'],
-    in_stock: true,
-    source: 'marketplace',
-    temperature_range_c: { min_c: -5, max_c: 16 },
-  },
-];
+/** Photo-backed demo catalog — see `marketplaceCatalog.ts`. */
+export const DEMO_MARKETPLACE_PRODUCTS = museMarketplaceProducts();
+

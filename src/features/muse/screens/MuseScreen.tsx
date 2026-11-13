@@ -22,6 +22,11 @@ import {
 } from '@/features/closet/services/closetApi';
 import type { ClosetGarment } from '@/features/closet/types';
 import { GarmentCutoutTile } from '@/features/muse/components/GarmentCutoutTile';
+import { MarketplaceProductTile } from '@/features/muse/components/MarketplaceProductTile';
+import {
+  MARKETPLACE_CATALOG,
+  marketplaceProductById,
+} from '@/features/muse/data/marketplaceCatalog';
 import {
   DEMO_MARKETPLACE_PRODUCTS,
   museBaseUrl,
@@ -30,6 +35,7 @@ import {
   recommendOutfits,
   sendOutfitFeedback,
   type MuseFeedbackAction,
+  type MuseMarketplaceItem,
   type MuseOccasion,
   type MuseOutfit,
   type MuseRecommendResponse,
@@ -74,6 +80,25 @@ function weatherChipLabel(weather: MuseWeather) {
   return `${temp}${condition}`.trim() || 'Weather';
 }
 
+function resolveMarketProduct(item: MuseMarketplaceItem) {
+  const fromCatalog = marketplaceProductById(item.product_id);
+  if (fromCatalog) return fromCatalog;
+  if (!item.image_url && !item.name) return null;
+  return {
+    id: item.product_id,
+    name: item.name ?? item.subcategory ?? item.category ?? 'Partner piece',
+    brand: item.brand ?? 'Partner',
+    price: item.price ?? 0,
+    currency: item.currency ?? 'USD',
+    category: item.category,
+    subcategory: item.subcategory,
+    colors: item.colors,
+    image_url: item.image_url ?? '',
+    in_stock: true,
+    source: 'marketplace' as const,
+  };
+}
+
 type MuseMode = 'outfits' | 'travel';
 
 export default function MuseScreen() {
@@ -87,7 +112,7 @@ export default function MuseScreen() {
   const [occasion, setOccasion] = useState<MuseOccasion>('smart-casual');
   const [weather, setWeather] = useState<MuseWeather>(WEATHER_PRESETS[0].weather);
   const [mode, setMode] = useState<MuseMode>('outfits');
-  const [marketplaceOn, setMarketplaceOn] = useState(false);
+  const [marketplaceOn, setMarketplaceOn] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -681,6 +706,35 @@ export default function MuseScreen() {
                   ) : null}
                 </View>
 
+                {featured.marketplace_items?.length ? (
+                  <View style={styles.marketPickBlock}>
+                    <Text style={styles.moreTitle}>Muse picked from market</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.marketRow}>
+                      {featured.marketplace_items.map((item) => {
+                        const product = resolveMarketProduct(item);
+                        if (!product?.image_url) return null;
+                        return (
+                          <MarketplaceProductTile
+                            key={item.product_id}
+                            product={product}
+                            badge="Muse pick"
+                            compact
+                            onPress={() =>
+                              Alert.alert(
+                                product.name,
+                                `${product.brand} · $${product.price}\n${item.role ?? 'piece'} suggested to complete this look.`,
+                              )
+                            }
+                          />
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ) : null}
+
                 <View style={styles.actions}>
                   <Pressable
                     accessibilityRole="button"
@@ -779,6 +833,61 @@ export default function MuseScreen() {
                   </View>
                 </>
               ) : null}
+
+              {marketplaceOn ? (
+                <>
+                  <Text style={styles.moreTitle}>Partner catalog</Text>
+                  <Text style={styles.catalogHint}>
+                    Muse can mix these into your looks when Market is on. Try 18° rain
+                    without a jacket in your closet.
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.marketRow}>
+                    {MARKETPLACE_CATALOG.filter((item) => item.in_stock)
+                      .slice(0, 10)
+                      .map((product) => (
+                        <MarketplaceProductTile
+                          key={product.id}
+                          product={product}
+                          onPress={() =>
+                            Alert.alert(
+                              product.name,
+                              `${product.brand} · $${product.price}\n${product.subcategory ?? product.category}`,
+                            )
+                          }
+                        />
+                      ))}
+                  </ScrollView>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {!loading && !statusMessage && !featured && marketplaceOn ? (
+            <>
+              <Text style={styles.moreTitle}>Partner catalog</Text>
+              <Text style={styles.catalogHint}>
+                Market is on — Muse will pull from these when your closet has gaps.
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.marketRow}>
+                {MARKETPLACE_CATALOG.filter((item) => item.in_stock).map((product) => (
+                  <MarketplaceProductTile
+                    key={product.id}
+                    product={product}
+                    onPress={() =>
+                      Alert.alert(
+                        product.name,
+                        `${product.brand} · $${product.price}\n${product.subcategory ?? product.category}`,
+                      )
+                    }
+                  />
+                ))}
+              </ScrollView>
             </>
           ) : null}
         </ScrollView>
@@ -859,6 +968,22 @@ const styles = StyleSheet.create({
   },
   modeChipTextActive: {
     color: Colors.light.onPrimary,
+  },
+  marketPickBlock: {
+    marginTop: 14,
+  },
+  marketRow: {
+    gap: 12,
+    paddingRight: 8,
+    paddingBottom: 4,
+  },
+  catalogHint: {
+    marginTop: -4,
+    marginBottom: 12,
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.light.textSecondary,
   },
   metaLine: {
     marginBottom: 10,
