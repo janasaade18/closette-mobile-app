@@ -12,7 +12,7 @@ const accentOptions = [Colors.light.navySwatch, Colors.light.blueSlate, Colors.l
 
 export default function ProfileSettingsScreen() {
   const router = useRouter();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin, brandId } = useAuth();
   const [accent, setAccent] = useState(profile?.accent_color || accentOptions[0]);
   const [weatherEnabled, setWeatherEnabled] = useState(profile?.weather_aware ?? true);
   const [reminderEnabled, setReminderEnabled] = useState(true);
@@ -46,6 +46,26 @@ export default function ProfileSettingsScreen() {
             <View style={styles.avatar}><SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} tintColor={Colors.light.onPrimary} size={31} /></View>
             <View><Text style={styles.profileName}>{profile?.display_name || 'Closette member'}</Text><Text style={styles.profileSubtitle}>{profile?.email || 'Signed in'}</Text></View>
           </Pressable>
+
+          {isAdmin ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push('/admin')} style={styles.settingCard}>
+              <View style={styles.settingCopy}>
+                <Text style={styles.settingTitle}>Manage brands</Text>
+                <Text style={styles.settingSubtitle}>Create logins and catalogs</Text>
+              </View>
+              <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={Colors.light.textSecondary} size={19} />
+            </Pressable>
+          ) : null}
+
+          {brandId ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push('/brand')} style={styles.settingCard}>
+              <View style={styles.settingCopy}>
+                <Text style={styles.settingTitle}>My catalog</Text>
+                <Text style={styles.settingSubtitle}>Upload and edit products</Text>
+              </View>
+              <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={Colors.light.textSecondary} size={19} />
+            </Pressable>
+          ) : null}
 
           <View style={styles.settingCard}>
             <View style={styles.settingCopy}><Text style={styles.settingTitle}>Accent colour</Text><Text style={styles.settingSubtitle}>Make the app yours</Text></View>
