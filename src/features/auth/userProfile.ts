@@ -18,10 +18,10 @@ export async function fetchUserProfile(userId: string) {
   return data as ClosetteUserProfile | null;
 }
 
-export async function fetchOwnedBrandId(userId: string) {
+export async function fetchOwnedBrand(userId: string) {
   const { data, error } = await supabase
     .from('brands')
-    .select('id')
+    .select('id, is_active')
     .eq('owner_user_id', userId)
     .maybeSingle();
 
@@ -30,7 +30,8 @@ export async function fetchOwnedBrandId(userId: string) {
     return null;
   }
 
-  return data?.id ?? null;
+  if (!data?.id) return null;
+  return { id: data.id, isActive: Boolean(data.is_active) };
 }
 
 export async function saveOnboardingProfile(

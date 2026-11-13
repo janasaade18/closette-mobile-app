@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useAuth } from '@/features/auth/AuthContext';
+import { roleHome } from '@/features/auth/roleHome';
 import AccentScreen from '@/onboarding/screens/AccentScreen';
 import BasicInfoScreen from '@/onboarding/screens/BasicInfoScreen';
 import DoneScreen from '@/onboarding/screens/DoneScreen';
@@ -14,7 +15,7 @@ import WelcomeScreen from '@/onboarding/screens/WelcomeScreen';
 
 export default function IndexRoute() {
   const router = useRouter();
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, isAdmin, brandId } = useAuth();
   const [step, setStep] = useState(0);
   const [splashDone, setSplashDone] = useState(false);
 
@@ -26,7 +27,7 @@ export default function IndexRoute() {
     }
 
     if (session && profile?.onboarding_completed_at) {
-      router.replace('/home');
+      router.replace(roleHome(isAdmin, brandId));
       return;
     }
 
@@ -34,7 +35,7 @@ export default function IndexRoute() {
       // Authenticated users who never finished onboarding skip welcome/auth.
       setStep(2);
     }
-  }, [loading, splashDone, session, profile, step, router]);
+  }, [loading, splashDone, session, profile, isAdmin, brandId, step, router]);
 
   if (!splashDone || loading) {
     return (
@@ -60,7 +61,7 @@ export default function IndexRoute() {
     return (
       <SplashScreen
         onFinish={() => {
-          router.replace('/home');
+          router.replace(roleHome(isAdmin, brandId));
         }}
       />
     );

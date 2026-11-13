@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
+import { roleHome } from '@/features/auth/roleHome';
 
 export default function MainLayout() {
   const router = useRouter();
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, isAdmin, brandId } = useAuth();
 
   useEffect(() => {
     if (loading) {
@@ -17,12 +18,24 @@ export default function MainLayout() {
       router.replace('/sign-in');
       return;
     }
+    if (isAdmin || brandId) {
+      router.replace(roleHome(isAdmin, brandId));
+      return;
+    }
     // Only bounce incomplete onboarding when we actually have a profile row.
     // A null profile during a refresh must not kick completed users to `/` → home.
     if (profile && !profile.onboarding_completed_at) {
       router.replace('/');
     }
-  }, [loading, session, profile, router]);
+  }, [loading, session, profile, isAdmin, brandId, router]);
+
+  if (loading || !session || isAdmin || brandId) {
+    return (
+      <View style={styles.waiting}>
+        <ActivityIndicator color={Colors.light.primary} />
+      </View>
+    );
+  }
 
   return (
     <Stack
@@ -40,4 +53,10 @@ export default function MainLayout() {
 
 const styles = StyleSheet.create({
   scene: { backgroundColor: Colors.light.canvas },
+  waiting: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.canvas,
+  },
 });

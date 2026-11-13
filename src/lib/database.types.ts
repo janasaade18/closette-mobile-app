@@ -22,6 +22,7 @@ export type UsersRow = {
   common_occasions: string[];
   onboarding_completed_at: string | null;
   role: UserRole;
+  disabled_at: string | null;
   created_at: string;
   updated_at: string;
 };

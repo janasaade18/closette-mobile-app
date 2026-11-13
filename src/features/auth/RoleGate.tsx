@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
+import { roleHome } from '@/features/auth/roleHome';
 
 export function RoleGate({
   allowed,
@@ -13,13 +14,13 @@ export function RoleGate({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const { loading } = useAuth();
+  const { loading, isAdmin, brandId } = useAuth();
 
   useEffect(() => {
     if (!loading && !allowed) {
-      router.replace('/profile');
+      router.replace(roleHome(isAdmin, brandId));
     }
-  }, [allowed, loading, router]);
+  }, [allowed, brandId, isAdmin, loading, router]);
 
   if (loading || !allowed) {
     return (

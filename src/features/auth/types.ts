@@ -18,6 +18,7 @@ export type ClosetteUserProfile = {
   common_occasions: string[];
   onboarding_completed_at: string | null;
   role: 'admin' | 'user';
+  disabled_at: string | null;
   created_at: string;
   updated_at: string;
 };

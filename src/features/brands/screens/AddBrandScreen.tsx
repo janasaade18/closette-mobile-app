@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -73,7 +73,7 @@ export default function AddBrandScreen() {
           {
             text: 'Open brand',
             onPress: () =>
-              router.replace({ pathname: '/admin/[brandId]', params: { brandId: created.brand.id } }),
+              router.replace({ pathname: '/admin/brand/[brandId]', params: { brandId: created.brand.id } }),
           },
         ],
       );
