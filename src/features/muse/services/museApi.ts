@@ -20,6 +20,27 @@ export type MuseGarment = {
   };
   pattern?: string;
   availability?: string;
+  formality?: string;
+  style_tags?: string[];
+  source?: 'wardrobe' | 'marketplace';
+  price?: number;
+  currency?: string;
+  sizes?: string[];
+  brand?: string;
+  in_stock?: boolean;
+  temperature_range_c?: { min_c?: number; max_c?: number };
+};
+
+export type MuseMarketplaceItem = {
+  product_id: string;
+  role?: string;
+  category?: string;
+  subcategory?: string;
+  price?: number;
+  currency?: string;
+  brand?: string | null;
+  sizes?: string[];
+  colors?: { primary?: string; secondary?: string[] };
 };
 
 export type MuseOutfit = {
@@ -31,28 +52,99 @@ export type MuseOutfit = {
   reason_codes: string[];
   signals_used: string[];
   model_version: string;
+  mixed?: boolean;
+  marketplace_items?: MuseMarketplaceItem[];
+};
+
+export type MuseRankingMeta = {
+  method?: string;
+  learned_model?: boolean;
+  personalization?: string;
+  personalization_applied?: boolean;
+  linucb_updates?: number;
+  feedback_events?: number;
+  feedback_min_events?: number;
+  feedback_applied?: boolean;
+  marketplace_enabled?: boolean;
+  marketplace_products_considered?: number;
+  marketplace_products_used?: number;
+  marketplace_mixed_outfits?: number;
 };
 
 export type MuseRecommendResponse = {
   api_version: string;
   model_version: string;
-  status: 'ok' | 'empty_wardrobe' | 'insufficient_candidates';
+  status: 'ok' | 'empty_wardrobe' | 'insufficient_candidates' | string;
   recommendation_id: string;
   recommendations: MuseOutfit[];
-  ranking?: {
-    method: string;
-    learned_model: boolean;
-    feedback_events: number;
-    feedback_min_events: number;
-    feedback_applied: boolean;
-  };
-  warnings?: string[];
+  ranking?: MuseRankingMeta;
+  warnings?: Array<string | { code?: string; message?: string }>;
   excluded_items?: Array<{ item_id: string; rules: string[] }>;
+  marketplace_excluded?: Array<{ id: string; reason: string }>;
+  message?: string;
+  error?: string;
+  score_semantics?: string;
+};
+
+export type MuseFeedbackAction =
+  | 'like'
+  | 'save'
+  | 'dislike'
+  | 'dismiss'
+  | 'worn'
+  | 'purchase';
+
+export type MuseMarketplaceOptions = {
+  enabled?: boolean;
+  budget_max?: number;
+  budget_min?: number;
+  sizes?: string[];
+  include_mixed?: boolean;
+  max_products?: number;
+};
+
+export type MuseTravelDayPlan = {
+  date: string;
+  label?: string | null;
+  occasion?: string;
+  weather?: MuseWeather | null;
+  season?: string | null;
+  status: string;
+  outfit: MuseOutfit | null;
+  rotation_penalty?: number | null;
+  notes?: string[];
+};
+
+export type MuseTravelPackResponse = {
+  api_version: string;
+  model_version: string;
+  status: 'ok' | 'partial' | 'insufficient_candidates' | string;
+  destination?: { name?: string | null; country?: string | null } | null;
+  trip?: { start_date?: string | null; days?: number };
+  luggage?: {
+    max_items?: number;
+    max_weight_kg?: number | null;
+    unique_items?: number;
+    total_weight_kg?: number;
+    wardrobe_items?: number;
+    marketplace_items?: number;
+    prefer_rewear?: boolean;
+    max_core_reuses?: number;
+  };
+  day_plans: MuseTravelDayPlan[];
+  packing_list: Array<{
+    id: string;
+    uses: number;
+    source: string;
+    category?: string | null;
+    weight_kg?: number;
+    price?: number | null;
+  }>;
+  marketplace_suggestions: MuseMarketplaceItem[];
+  warnings?: Array<{ code?: string; message?: string }>;
   message?: string;
   error?: string;
 };
-
-export type MuseFeedbackAction = 'like' | 'save' | 'dislike' | 'dismiss' | 'worn';
 
 function resolveDevHost(): string {
   const explicit = process.env.EXPO_PUBLIC_DEV_HOST?.trim();
@@ -96,12 +188,33 @@ const MUSE_CATEGORIES = new Set([
   'accessories',
 ]);
 
+async function museFetch(path: string, body: unknown) {
+  let response: Response;
+  try {
+    response = await fetch(`${museBaseUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/Network request failed|Failed to fetch|ECONNREFUSED/i.test(message)) {
+      throw new Error(
+        `Cannot reach Muse at ${museBaseUrl()}. Start it with: node api/server.js --port 8787`,
+      );
+    }
+    throw error instanceof Error ? error : new Error(message);
+  }
+  return response;
+}
+
 export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
   const category = (garment.category ?? '').toLowerCase();
   const mapped: MuseGarment = {
     id: garment.id,
     subcategory: garment.subcategory,
     availability: 'clean',
+    source: 'wardrobe',
   };
 
   if (MUSE_CATEGORIES.has(category)) {
@@ -139,6 +252,18 @@ export function buildMuseProfile(profile: ClosetteUserProfile | null) {
   };
 }
 
+export function rankingSummary(ranking?: MuseRankingMeta, modelVersion?: string) {
+  const parts: string[] = [];
+  if (modelVersion) parts.push(modelVersion);
+  if (ranking?.learned_model) parts.push('learned MLP');
+  if (ranking?.personalization_applied) parts.push('personalized');
+  else if (ranking?.personalization === 'linucb') parts.push('personalization ready');
+  if (ranking?.marketplace_mixed_outfits) {
+    parts.push(`${ranking.marketplace_mixed_outfits} mixed`);
+  }
+  return parts.join(' · ') || 'Muse';
+}
+
 export async function recommendOutfits(input: {
   userId: string;
   wardrobe: ClosetGarment[];
@@ -146,8 +271,10 @@ export async function recommendOutfits(input: {
   weather?: MuseWeather;
   limit?: number;
   profile?: ClosetteUserProfile | null;
+  marketplace?: MuseMarketplaceOptions;
+  marketplaceProducts?: MuseGarment[];
 }): Promise<MuseRecommendResponse> {
-  const body = {
+  const body: Record<string, unknown> = {
     user_id: input.userId,
     occasion: input.occasion ?? 'casual',
     weather: input.weather,
@@ -155,24 +282,12 @@ export async function recommendOutfits(input: {
     profile: buildMuseProfile(input.profile ?? null),
     wardrobe: input.wardrobe.map(closetGarmentToMuse),
   };
-
-  let response: Response;
-  try {
-    response = await fetch(`${museBaseUrl()}/v1/outfits/recommend`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/Network request failed|Failed to fetch|ECONNREFUSED/i.test(message)) {
-      throw new Error(
-        `Cannot reach Muse at ${museBaseUrl()}. Start it with: node api/server.js --port 8787`,
-      );
-    }
-    throw error instanceof Error ? error : new Error(message);
+  if (input.marketplace) body.marketplace = input.marketplace;
+  if (input.marketplaceProducts?.length) {
+    body.marketplace_products = input.marketplaceProducts;
   }
 
+  const response = await museFetch('/v1/outfits/recommend', body);
   const json = (await response.json()) as MuseRecommendResponse;
   if (!response.ok) {
     throw new Error(
@@ -188,29 +303,18 @@ export async function sendOutfitFeedback(input: {
   action: MuseFeedbackAction;
   userId?: string;
   reason?: { code?: string; note?: string };
+  source?: 'wardrobe' | 'marketplace';
+  productIds?: string[];
 }) {
-  let response: Response;
-  try {
-    response = await fetch(`${museBaseUrl()}/v1/outfits/feedback`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        recommendation_id: input.recommendationId,
-        outfit_id: input.outfitId,
-        action: input.action,
-        user_id: input.userId,
-        reason: input.reason,
-      }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/Network request failed|Failed to fetch|ECONNREFUSED/i.test(message)) {
-      throw new Error(
-        `Cannot reach Muse at ${museBaseUrl()}. Start it with: node api/server.js --port 8787`,
-      );
-    }
-    throw error instanceof Error ? error : new Error(message);
-  }
+  const response = await museFetch('/v1/outfits/feedback', {
+    recommendation_id: input.recommendationId,
+    outfit_id: input.outfitId,
+    action: input.action,
+    user_id: input.userId,
+    reason: input.reason,
+    source: input.source,
+    product_ids: input.productIds,
+  });
 
   const json = (await response.json()) as {
     status?: string;
@@ -224,3 +328,100 @@ export async function sendOutfitFeedback(input: {
   }
   return json;
 }
+
+export async function packTravel(input: {
+  userId: string;
+  wardrobe: ClosetGarment[];
+  destination?: { name?: string; country?: string };
+  days: Array<{
+    date: string;
+    occasion?: MuseOccasion;
+    weather?: MuseWeather;
+    label?: string;
+  }>;
+  luggage?: {
+    max_items?: number;
+    max_weight_kg?: number;
+    prefer_rewear?: boolean;
+    max_core_reuses?: number;
+  };
+  marketplace?: MuseMarketplaceOptions;
+  marketplaceProducts?: MuseGarment[];
+  profile?: ClosetteUserProfile | null;
+  candidatesPerDay?: number;
+}): Promise<MuseTravelPackResponse> {
+  const body: Record<string, unknown> = {
+    user_id: input.userId,
+    wardrobe: input.wardrobe.map(closetGarmentToMuse),
+    destination: input.destination,
+    trip: {
+      start_date: input.days[0]?.date,
+      days: input.days,
+    },
+    luggage: input.luggage ?? {
+      max_items: 12,
+      prefer_rewear: true,
+      max_core_reuses: 1,
+    },
+    profile: buildMuseProfile(input.profile ?? null),
+    candidates_per_day: input.candidatesPerDay ?? 4,
+  };
+  if (input.marketplace) body.marketplace = input.marketplace;
+  if (input.marketplaceProducts?.length) {
+    body.marketplace_products = input.marketplaceProducts;
+  }
+
+  const response = await museFetch('/v1/travel/pack', body);
+  const json = (await response.json()) as MuseTravelPackResponse;
+  if (!response.ok) {
+    throw new Error(
+      json.message ?? json.error ?? `Muse travel pack failed: ${response.status}`,
+    );
+  }
+  return json;
+}
+
+/** Small demo catalog for local marketplace testing when Nest has no products API yet. */
+export const DEMO_MARKETPLACE_PRODUCTS: MuseGarment[] = [
+  {
+    id: 'mkt-sneaker-01',
+    category: 'footwear',
+    subcategory: 'sneakers',
+    colors: { primary: 'white', secondary: ['grey'] },
+    formality: 'casual',
+    style_tags: ['minimal'],
+    price: 78,
+    currency: 'USD',
+    sizes: ['40', '41', '42', '43'],
+    in_stock: true,
+    source: 'marketplace',
+    temperature_range_c: { min_c: 8, max_c: 34 },
+  },
+  {
+    id: 'mkt-blazer-01',
+    category: 'outerwear',
+    subcategory: 'blazer',
+    colors: { primary: 'navy' },
+    formality: 'work',
+    style_tags: ['classic'],
+    price: 160,
+    currency: 'USD',
+    sizes: ['S', 'M', 'L'],
+    in_stock: true,
+    source: 'marketplace',
+    temperature_range_c: { min_c: 5, max_c: 22 },
+  },
+  {
+    id: 'mkt-scarf-01',
+    category: 'accessories',
+    subcategory: 'scarf',
+    colors: { primary: 'olive' },
+    formality: 'casual',
+    price: 45,
+    currency: 'USD',
+    sizes: ['OS'],
+    in_stock: true,
+    source: 'marketplace',
+    temperature_range_c: { min_c: -5, max_c: 16 },
+  },
+];

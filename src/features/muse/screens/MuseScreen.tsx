@@ -23,13 +23,17 @@ import {
 import type { ClosetGarment } from '@/features/closet/types';
 import { GarmentCutoutTile } from '@/features/muse/components/GarmentCutoutTile';
 import {
+  DEMO_MARKETPLACE_PRODUCTS,
   museBaseUrl,
+  packTravel,
+  rankingSummary,
   recommendOutfits,
   sendOutfitFeedback,
   type MuseFeedbackAction,
   type MuseOccasion,
   type MuseOutfit,
   type MuseRecommendResponse,
+  type MuseTravelPackResponse,
   type MuseWeather,
 } from '@/features/muse/services/museApi';
 
@@ -70,15 +74,20 @@ function weatherChipLabel(weather: MuseWeather) {
   return `${temp}${condition}`.trim() || 'Weather';
 }
 
+type MuseMode = 'outfits' | 'travel';
+
 export default function MuseScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
 
   const [garments, setGarments] = useState<ClosetGarment[]>([]);
   const [result, setResult] = useState<MuseRecommendResponse | null>(null);
+  const [travel, setTravel] = useState<MuseTravelPackResponse | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
   const [occasion, setOccasion] = useState<MuseOccasion>('smart-casual');
   const [weather, setWeather] = useState<MuseWeather>(WEATHER_PRESETS[0].weather);
+  const [mode, setMode] = useState<MuseMode>('outfits');
+  const [marketplaceOn, setMarketplaceOn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +108,7 @@ export default function MuseScreen() {
     if (!user?.id) {
       setGarments([]);
       setResult(null);
+      setTravel(null);
       setLoading(false);
       setRefreshing(false);
       return;
@@ -118,30 +128,79 @@ export default function MuseScreen() {
           recommendations: [],
           message: 'Add garments to your closet to get Muse outfits.',
         });
+        setTravel(null);
         setSelectedOutfitId(null);
         return;
       }
 
-      const next = await recommendOutfits({
-        userId: user.id,
-        wardrobe: rows,
-        occasion,
-        weather,
-        limit: 3,
-        profile,
-      });
-      setResult(next);
-      setSelectedOutfitId(next.recommendations[0]?.outfit_id ?? null);
+      const marketplace = marketplaceOn
+        ? {
+            enabled: true,
+            budget_max: 180,
+            include_mixed: true,
+            max_products: 12,
+          }
+        : undefined;
+
+      if (mode === 'travel') {
+        const packed = await packTravel({
+          userId: user.id,
+          wardrobe: rows,
+          destination: { name: 'Weekend trip' },
+          days: [
+            {
+              date: 'day-1',
+              label: 'Day 1',
+              occasion,
+              weather,
+            },
+            {
+              date: 'day-2',
+              label: 'Day 2',
+              occasion: occasion === 'formal' ? 'smart-casual' : 'formal',
+              weather: { temperature_c: Math.max(6, (weather.temperature_c ?? 18) - 6) },
+            },
+            {
+              date: 'day-3',
+              label: 'Day 3',
+              occasion: 'casual',
+              weather: { temperature_c: (weather.temperature_c ?? 18) + 2 },
+            },
+          ],
+          luggage: { max_items: 12, prefer_rewear: true, max_core_reuses: 1 },
+          marketplace,
+          marketplaceProducts: marketplaceOn ? DEMO_MARKETPLACE_PRODUCTS : undefined,
+          profile,
+        });
+        setTravel(packed);
+        setResult(null);
+        setSelectedOutfitId(null);
+      } else {
+        const next = await recommendOutfits({
+          userId: user.id,
+          wardrobe: rows,
+          occasion,
+          weather,
+          limit: 3,
+          profile,
+          marketplace,
+          marketplaceProducts: marketplaceOn ? DEMO_MARKETPLACE_PRODUCTS : undefined,
+        });
+        setResult(next);
+        setTravel(null);
+        setSelectedOutfitId(next.recommendations[0]?.outfit_id ?? null);
+      }
       setIsSaved(false);
       setIsLiked(false);
     } catch (err) {
       setError(authErrorMessage(err));
       setResult(null);
+      setTravel(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id, occasion, weather, profile]);
+  }, [user?.id, occasion, weather, profile, mode, marketplaceOn]);
 
   useFocusEffect(
     useCallback(() => {
@@ -168,22 +227,47 @@ export default function MuseScreen() {
   const featuredPieces = useMemo(() => {
     if (!featured) return [];
     const roles = featured.roles ?? {};
+    const marketById = new Map(
+      (featured.marketplace_items ?? []).map((item) => [item.product_id, item]),
+    );
     const order = ['top', 'one_piece', 'bottom', 'outerwear', 'footwear', 'accessory'];
     const seen = new Set<string>();
-    const pieces: Array<{ role: string; garment?: ClosetGarment }> = [];
+    const pieces: Array<{
+      role: string;
+      garment?: ClosetGarment;
+      marketplaceLabel?: string;
+    }> = [];
     for (const role of order) {
       const id = roles[role];
       if (!id || seen.has(id)) continue;
       seen.add(id);
-      pieces.push({ role, garment: garmentById.get(id) });
+      const market = marketById.get(id);
+      pieces.push({
+        role,
+        garment: garmentById.get(id),
+        marketplaceLabel: market
+          ? `${market.brand ?? 'Market'} ${market.subcategory ?? market.category ?? 'piece'}${
+              market.price != null ? ` · $${market.price}` : ''
+            }`
+          : undefined,
+      });
     }
     for (const id of featured.items ?? []) {
       if (seen.has(id)) continue;
       seen.add(id);
-      pieces.push({ role: 'top', garment: garmentById.get(id) });
+      const market = marketById.get(id);
+      pieces.push({
+        role: 'top',
+        garment: garmentById.get(id),
+        marketplaceLabel: market
+          ? `${market.brand ?? 'Market'} ${market.subcategory ?? 'piece'}`
+          : undefined,
+      });
     }
     return pieces;
   }, [featured, garmentById]);
+
+  const modelLine = rankingSummary(result?.ranking, result?.model_version);
 
   const pickOccasion = () => {
     Alert.alert(
@@ -213,7 +297,18 @@ export default function MuseScreen() {
     );
   };
 
-  const describePiece = (piece?: { role: string; garment?: ClosetGarment }) => {
+  const describePiece = (piece?: {
+    role: string;
+    garment?: ClosetGarment;
+    marketplaceLabel?: string;
+  }) => {
+    if (piece?.marketplaceLabel) {
+      Alert.alert(
+        piece.marketplaceLabel,
+        `${piece.role.replace('_', ' ')} · marketplace suggestion`,
+      );
+      return;
+    }
     if (!piece?.garment) {
       Alert.alert('Muse', 'That piece is missing from your closet.');
       return;
@@ -235,11 +330,16 @@ export default function MuseScreen() {
     if (!featured || !result?.recommendation_id || !user?.id) return;
     setFeedbackBusy(true);
     try {
+      const marketIds = (featured.marketplace_items ?? []).map(
+        (item) => item.product_id,
+      );
       await sendOutfitFeedback({
         recommendationId: result.recommendation_id,
         outfitId: featured.outfit_id,
         action,
         userId: user.id,
+        source: marketIds.length ? 'marketplace' : 'wardrobe',
+        productIds: marketIds.length ? marketIds : undefined,
       });
       if (action === 'save') {
         setIsSaved(true);
@@ -248,6 +348,12 @@ export default function MuseScreen() {
       if (action === 'like') {
         setIsLiked(true);
         Alert.alert('Liked', 'Muse will prefer looks like this.');
+      }
+      if (action === 'purchase') {
+        Alert.alert(
+          'Purchase logged',
+          'Muse will learn from this marketplace interaction.',
+        );
       }
       if (action === 'dislike' || action === 'dismiss') {
         Alert.alert('Got it', 'Muse will weigh that next time.');
@@ -295,6 +401,13 @@ export default function MuseScreen() {
     if (result?.status === 'empty_wardrobe') {
       return 'Your closet is empty. Add a few pieces, then Muse can dress you.';
     }
+    if (mode === 'travel') {
+      if (travel?.status === 'insufficient_candidates') {
+        return 'Need more closet coverage for a multi-day plan.';
+      }
+      if (!travel?.day_plans?.length) return 'No travel plan yet.';
+      return null;
+    }
     if (result?.status === 'insufficient_candidates') {
       return 'Need a top, bottom, and shoes (or a one-piece and shoes) in your closet.';
     }
@@ -322,7 +435,11 @@ export default function MuseScreen() {
           <View style={styles.titleRow}>
             <View>
               <Text style={styles.title}>Muse</Text>
-              <Text style={styles.subtitle}>Outfits built from your closet</Text>
+              <Text style={styles.subtitle}>
+                {mode === 'travel'
+                  ? 'Multi-day packing from your closet'
+                  : 'Outfits built from your closet'}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -336,6 +453,42 @@ export default function MuseScreen() {
                 size={21}
               />
               <Text style={styles.chatButtonText}>Ask Muse</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.modeRow}>
+            <Pressable
+              style={[styles.modeChip, mode === 'outfits' && styles.modeChipActive]}
+              onPress={() => setMode('outfits')}>
+              <Text
+                style={[
+                  styles.modeChipText,
+                  mode === 'outfits' && styles.modeChipTextActive,
+                ]}>
+                Outfits
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeChip, mode === 'travel' && styles.modeChipActive]}
+              onPress={() => setMode('travel')}>
+              <Text
+                style={[
+                  styles.modeChipText,
+                  mode === 'travel' && styles.modeChipTextActive,
+                ]}>
+                Travel
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeChip, marketplaceOn && styles.modeChipActive]}
+              onPress={() => setMarketplaceOn((value) => !value)}>
+              <Text
+                style={[
+                  styles.modeChipText,
+                  marketplaceOn && styles.modeChipTextActive,
+                ]}>
+                Market {marketplaceOn ? 'on' : 'off'}
+              </Text>
             </Pressable>
           </View>
 
@@ -364,7 +517,9 @@ export default function MuseScreen() {
           {loading ? (
             <View style={styles.stateBlock}>
               <ActivityIndicator color={Colors.light.primary} />
-              <Text style={styles.stateText}>Asking Muse…</Text>
+              <Text style={styles.stateText}>
+                {mode === 'travel' ? 'Packing your trip…' : 'Asking Muse…'}
+              </Text>
             </View>
           ) : statusMessage ? (
             <View style={styles.stateBlock}>
@@ -378,12 +533,52 @@ export default function MuseScreen() {
                 </Pressable>
               ) : null}
             </View>
+          ) : mode === 'travel' && travel ? (
+            <View style={styles.featureCard}>
+              <Text style={styles.outfitTitle}>
+                {travel.destination?.name ?? 'Trip plan'}
+              </Text>
+              <Text style={styles.metaLine}>
+                {travel.model_version} · {travel.luggage?.unique_items ?? 0} pieces ·{' '}
+                {travel.luggage?.total_weight_kg ?? '?'} kg
+              </Text>
+              {(travel.day_plans ?? []).map((day) => (
+                <View key={day.date} style={styles.dayBlock}>
+                  <Text style={styles.dayTitle}>
+                    {day.label ?? day.date} · {day.occasion ?? 'look'}
+                  </Text>
+                  <Text style={styles.dayMeta}>
+                    {typeof day.weather?.temperature_c === 'number'
+                      ? `${day.weather.temperature_c}°`
+                      : 'weather n/a'}
+                    {day.outfit ? ` · ${scoreLabel(day.outfit.score)}` : ' · no outfit'}
+                    {day.outfit?.mixed ? ' · mixed' : ''}
+                  </Text>
+                  {day.outfit?.reasons?.[0] ? (
+                    <Text style={styles.dayReason}>{day.outfit.reasons[0]}</Text>
+                  ) : null}
+                </View>
+              ))}
+              {travel.marketplace_suggestions?.length ? (
+                <>
+                  <Text style={styles.moreTitle}>Suggested buys</Text>
+                  {travel.marketplace_suggestions.slice(0, 4).map((item) => (
+                    <Text key={item.product_id} style={styles.dayReason}>
+                      {item.brand ?? 'Market'} {item.subcategory ?? item.category}
+                      {item.price != null ? ` · $${item.price}` : ''}
+                    </Text>
+                  ))}
+                </>
+              ) : null}
+            </View>
           ) : featured ? (
             <>
+              <Text style={styles.metaLine}>{modelLine}</Text>
               <View style={styles.featureCard}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.outfitTitle} numberOfLines={2}>
                     {outfitTitle(featured, occasionLabel)}
+                    {featured.mixed ? ' · + market' : ''}
                   </Text>
                   <View style={styles.score}>
                     <Text style={styles.scoreText}>{scoreLabel(featured.score)}</Text>
@@ -430,6 +625,16 @@ export default function MuseScreen() {
                       <Text style={styles.tagText}>{reason}</Text>
                     </View>
                   ))}
+                  {featured.marketplace_items?.length ? (
+                    <View style={styles.tag}>
+                      <Text style={styles.tagText}>
+                        Buy:{' '}
+                        {featured.marketplace_items
+                          .map((item) => item.subcategory ?? item.category)
+                          .join(', ')}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.actions}>
@@ -477,6 +682,20 @@ export default function MuseScreen() {
                       size={20}
                     />
                   </Pressable>
+                  {featured.mixed ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Log marketplace purchase"
+                      disabled={feedbackBusy}
+                      onPress={() => void sendFeedback('purchase')}
+                      style={styles.roundAction}>
+                      <SymbolView
+                        name={{ ios: 'bag', android: 'shopping_bag', web: 'shopping_bag' }}
+                        tintColor={Colors.light.primary}
+                        size={20}
+                      />
+                    </Pressable>
+                  ) : null}
                   <Pressable style={styles.tryButton} onPress={tryOn}>
                     <Text style={styles.tryText}>Try it on</Text>
                   </Pressable>
@@ -508,6 +727,7 @@ export default function MuseScreen() {
                           />
                           <Text style={styles.suggestionLabel}>
                             {scoreLabel(outfit.score)}
+                            {outfit.mixed ? ' ·+' : ''}
                           </Text>
                         </Pressable>
                       );
@@ -568,12 +788,70 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 1,
   },
+  modeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+  modeChip: {
+    minHeight: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.light.outlineBlue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.backgroundElement,
+  },
+  modeChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  modeChipText: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    color: Colors.light.primary,
+  },
+  modeChipTextActive: {
+    color: Colors.light.onPrimary,
+  },
+  metaLine: {
+    marginBottom: 10,
+    fontFamily: Typeface.body,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  dayBlock: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.light.border,
+    gap: 4,
+  },
+  dayTitle: {
+    fontFamily: Typeface.bodyStrong,
+    fontSize: 15,
+    color: Colors.light.primary,
+  },
+  dayMeta: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  dayReason: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    color: Colors.light.primary,
+    marginTop: 2,
+  },
   filters: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 18,
+    marginTop: 12,
     marginBottom: 17,
+    flexWrap: 'wrap',
   },
   darkChip: {
     minHeight: 43,
