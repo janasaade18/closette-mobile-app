@@ -16,6 +16,10 @@ export type ChatContext = {
   occasionLabel: string;
   weather: MuseWeather;
   scheduleLabel: string;
+  /** Wardrobe ids the user rejected in this chat. */
+  avoidedGarmentIds?: string[];
+  /** Last shown outfit item ids (closet + market). */
+  lastOutfitItemIds?: string[];
 };
 
 export type ChatOutfitPayload = {
@@ -96,11 +100,16 @@ function parseSchedule(text: string, fallback: string) {
   return fallback;
 }
 
+function wantsAnotherLook(text: string) {
+  return /\b(another|different|something else|not this|don'?t like (this|that|it))\b/i.test(text);
+}
+
 function preferenceOverride(text: string, profile: ClosetteUserProfile | null) {
   const preferred_styles = [...(profile?.preferred_styles ?? [])];
   const favorite_colors = [...(profile?.preferred_colors ?? [])].map((c) =>
     c.trim().toLowerCase(),
   );
+  const preferred_garment_types = [...(profile?.preferred_clothing ?? [])];
 
   if (/\bdress(y|ier)|elegant|polished|formal\b/i.test(text)) {
     preferred_styles.push('elegant', 'smart');
@@ -113,8 +122,11 @@ function preferenceOverride(text: string, profile: ClosetteUserProfile | null) {
   }
 
   return {
-    preferred_styles: Array.from(new Set(preferred_styles)),
+    preferred_styles: Array.from(new Set(preferred_styles.map((s) => s.toLowerCase()))),
     favorite_colors,
+    preferred_garment_types: Array.from(
+      new Set(preferred_garment_types.map((s) => s.toLowerCase())),
+    ),
   };
 }
 
@@ -122,17 +134,37 @@ function titleFor(outfit: MuseOutfit, occasionLabel: string) {
   return outfit.reasons?.[0]?.replace(/\.$/, '') ?? `${occasionLabel} look`;
 }
 
-function pickOutfit(result: MuseRecommendResponse): MuseOutfit | undefined {
-  const rows = result.recommendations ?? [];
-  return rows.find((row) => row.mixed || (row.marketplace_items?.length ?? 0) > 0) ?? rows[0];
+function outfitUsesIds(outfit: MuseOutfit, ids: Set<string>) {
+  return (outfit.items ?? []).some((id) => ids.has(id));
 }
 
-/** Prefer the product Muse mixed into the outfit; otherwise a complementary shop pick. */
+function pickOutfit(
+  result: MuseRecommendResponse,
+  avoidedIds: Set<string>,
+): MuseOutfit | undefined {
+  const rows = result.recommendations ?? [];
+  if (!rows.length) return undefined;
+
+  const scored = [...rows].sort((a, b) => {
+    let scoreA = a.score ?? 0;
+    let scoreB = b.score ?? 0;
+    if (a.mixed) scoreA += 0.25;
+    if (b.mixed) scoreB += 0.25;
+    if (outfitUsesIds(a, avoidedIds)) scoreA -= 3;
+    if (outfitUsesIds(b, avoidedIds)) scoreB -= 3;
+    return scoreB - scoreA;
+  });
+
+  return (
+    scored.find((row) => !outfitUsesIds(row, avoidedIds)) ??
+    scored.find((row) => row.mixed || (row.marketplace_items?.length ?? 0) > 0) ??
+    scored[0]
+  );
+}
+
+/** Show-don’t-talk: surface a weather-fit market piece when the look is cool/wet. */
 function pickMarketplaceMatch(
   outfit: MuseOutfit | undefined,
-  result: MuseRecommendResponse,
-  wardrobe: ClosetGarment[],
-  text: string,
   weather: MuseWeather,
 ): ShopProduct | undefined {
   const mixedId = outfit?.marketplace_items?.[0]?.product_id;
@@ -141,52 +173,36 @@ function pickMarketplaceMatch(
     if (hit) return hit;
   }
 
-  const wantsJacket = /\bjacket|coat|blazer|layer|rain\b/i.test(text);
-  const wantsShoes = /\bshoe|loafer|sneaker|heel|boot\b/i.test(text);
-  const wantsScarf = /\bscarf|wrap|accessory\b/i.test(text);
   const cool =
     (typeof weather.temperature_c === 'number' && weather.temperature_c <= 18) ||
     weather.condition === 'rain' ||
     weather.condition === 'snow' ||
     weather.condition === 'cold';
-
-  const hasOuter = wardrobe.some((item) =>
-    (item.category ?? '').toLowerCase().includes('outer'),
-  );
-  const hasFootwear = wardrobe.some((item) =>
-    (item.category ?? '').toLowerCase().includes('footwear'),
-  );
-
   const pool = shopCatalog.filter((p) => p.in_stock);
-
-  if (cool && !hasOuter) {
+  if (cool) {
     if (weather.condition === 'rain') {
       return (
         pool.find((p) => p.id === 'mkt-raincoat-01') ??
         pool.find((p) => p.subcategory === 'jacket')
       );
     }
-    return (
-      pool.find((p) => p.id === 'mkt-jacket-01') ??
-      pool.find((p) => p.category === 'Outerwear' && p.formality !== 'formal')
-    );
+    return pool.find((p) => p.id === 'mkt-jacket-01') ?? pool.find((p) => p.category === 'Outerwear');
   }
+  return undefined;
+}
 
-  if (wantsJacket) {
-    return pool.find((p) => p.subcategory === 'jacket' || p.subcategory === 'raincoat');
-  }
-  if (wantsScarf) {
-    return pool.find((p) => p.subcategory === 'scarf');
-  }
-  if (wantsShoes || (result.status === 'insufficient_candidates' && !hasFootwear)) {
-    return pool.find((p) => p.category === 'Shoes');
-  }
+function replyCopy(context: ChatContext, mixed: boolean) {
+  const temp =
+    typeof context.weather.temperature_c === 'number'
+      ? `${context.weather.temperature_c}°`
+      : '';
+  const condition = context.weather.condition ? ` ${context.weather.condition}` : '';
+  const weatherBit = `${temp}${condition}`.trim();
 
-  // Last resort complement — still show a product when possible.
-  if (cool) {
-    return pool.find((p) => p.subcategory === 'scarf') ?? pool.find((p) => p.category === 'Outerwear');
-  }
-  return pool.find((p) => p.id === 'mkt-bag-01') ?? pool[0];
+  let textReply = `Here is a ${context.occasionLabel.toLowerCase()} look`;
+  if (weatherBit) textReply += ` · ${weatherBit}`;
+  textReply += mixed ? ', with a marketplace piece in the mix.' : '.';
+  return textReply;
 }
 
 export async function replyToMuseChat(input: {
@@ -200,11 +216,19 @@ export async function replyToMuseChat(input: {
   const occasion = parseOccasion(text, input.context.occasion, input.context.occasionLabel);
   const weather = parseWeather(text, input.context.weather);
   const scheduleLabel = parseSchedule(text, input.context.scheduleLabel);
+
+  const avoided = new Set(input.context.avoidedGarmentIds ?? []);
+  if (wantsAnotherLook(text)) {
+    for (const id of input.context.lastOutfitItemIds ?? []) avoided.add(id);
+  }
+
   const context: ChatContext = {
     occasion: occasion.value,
     occasionLabel: occasion.label,
     weather,
     scheduleLabel,
+    avoidedGarmentIds: [...avoided],
+    lastOutfitItemIds: input.context.lastOutfitItemIds,
   };
 
   if (input.wardrobe.length === 0) {
@@ -223,51 +247,49 @@ export async function replyToMuseChat(input: {
     wardrobe: input.wardrobe,
     occasion: context.occasion,
     weather: context.weather,
-    limit: 4,
+    limit: 6,
     profile: input.profile
       ? {
           ...input.profile,
           preferred_styles: override.preferred_styles,
           preferred_colors: override.favorite_colors,
+          preferred_clothing: override.preferred_garment_types,
         }
       : null,
-    marketplace: { enabled: true, include_mixed: true },
+    preferencesOverride: {
+      gender: input.profile?.gender ?? undefined,
+      preferred_styles: override.preferred_styles,
+      favorite_colors: override.favorite_colors,
+      preferred_garment_types: override.preferred_garment_types,
+      avoid_garment_ids: [...avoided],
+    },
+    marketplace: {
+      enabled: true,
+      include_mixed: true,
+      max_products: 16,
+    },
     marketplaceProducts: catalog,
   });
 
-  const outfit = pickOutfit(result);
-  const product = pickMarketplaceMatch(outfit, result, input.wardrobe, text, weather);
+  const outfit = pickOutfit(result, avoided);
+  const product = pickMarketplaceMatch(outfit, weather);
+  const nextContext: ChatContext = {
+    ...context,
+    lastOutfitItemIds: outfit?.items ?? [],
+  };
 
   if (!outfit) {
-    // Text is last resort — only when neither closet nor market can complete a look.
     return {
-      text: product
-        ? `I could not finish a full look from your closet. ${product.brand} ${product.name} from the marketplace is the closest fill.`
-        : result.status === 'insufficient_candidates'
-          ? 'I need at least a top, bottom, and shoes in your closet before I can style you.'
-          : 'I could not build an outfit from your closet or the marketplace for these filters.',
-      context,
-      product,
+      text: 'I could not build an outfit from your closet or the marketplace for that request.',
+      context: nextContext,
       status: result.status,
     };
   }
 
-  const temp =
-    typeof context.weather.temperature_c === 'number'
-      ? `${context.weather.temperature_c}°`
-      : '';
-  const condition = context.weather.condition ? ` ${context.weather.condition}` : '';
-  const weatherBit = `${temp}${condition}`.trim();
   const mixed = Boolean(outfit.mixed || outfit.marketplace_items?.length);
-
-  // Show, don't lecture — keep copy short; the product card carries the shop piece.
-  let textReply = `Here is a ${context.occasionLabel.toLowerCase()} look`;
-  if (weatherBit) textReply += ` · ${weatherBit}`;
-  textReply += mixed ? ', with a marketplace piece in the mix.' : '.';
-
   return {
-    text: textReply,
-    context,
+    text: replyCopy(context, mixed),
+    context: nextContext,
     outfit: {
       recommendationId: result.recommendation_id,
       outfit,
@@ -280,10 +302,11 @@ export async function replyToMuseChat(input: {
 }
 
 export const MUSE_CHAT_STARTERS = [
-  'Make it dressier',
-  'Swap the shoes',
   'Something for rain',
-  'Keep it casual',
+  'Make it dressier',
+  'Casual weekend',
+  'Work meeting',
+  'Show me another look',
 ];
 
 export const DEFAULT_CHAT_CONTEXT: ChatContext = {
@@ -291,4 +314,6 @@ export const DEFAULT_CHAT_CONTEXT: ChatContext = {
   occasionLabel: 'Smart casual',
   weather: { temperature_c: 18, condition: 'rain' },
   scheduleLabel: 'Anytime',
+  avoidedGarmentIds: [],
+  lastOutfitItemIds: [],
 };

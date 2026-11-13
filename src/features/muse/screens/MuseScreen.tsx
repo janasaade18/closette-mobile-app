@@ -23,10 +23,7 @@ import {
 import type { ClosetGarment } from '@/features/closet/types';
 import { GarmentCutoutTile } from '@/features/muse/components/GarmentCutoutTile';
 import { MarketplaceProductTile } from '@/features/muse/components/MarketplaceProductTile';
-import {
-  MARKETPLACE_CATALOG,
-  marketplaceProductById,
-} from '@/features/muse/data/marketplaceCatalog';
+import { marketplaceProductById } from '@/features/muse/data/marketplaceCatalog';
 import {
   marketplaceProductsForGender,
   museBaseUrl,
@@ -63,8 +60,32 @@ function scoreLabel(score: number) {
 
 function outfitTitle(outfit: MuseOutfit, occasionLabel: string) {
   const primary = outfit.reasons?.[0];
-  if (primary) return primary.replace(/\.$/, '');
+  if (primary && !/marketplace|completed with/i.test(primary)) {
+    return primary.replace(/\.$/, '');
+  }
   return `${occasionLabel} look`;
+}
+
+function buildWeekDays(occasion: MuseOccasion, weather: MuseWeather) {
+  const baseTemp = weather.temperature_c ?? 18;
+  const occasions: MuseOccasion[] = [
+    occasion,
+    occasion === 'formal' ? 'smart-casual' : 'work',
+    'casual',
+    'smart-casual',
+    'work',
+    'casual',
+    occasion === 'formal' ? 'formal' : 'smart-casual',
+  ];
+  return occasions.map((dayOccasion, index) => ({
+    date: `day-${index + 1}`,
+    label: `Day ${index + 1}`,
+    occasion: dayOccasion,
+    weather: {
+      temperature_c: Math.max(4, baseTemp + ((index % 3) - 1) * 3),
+      condition: index === 1 || index === 4 ? 'rain' : weather.condition,
+    },
+  }));
 }
 
 function weatherChipLabel(weather: MuseWeather) {
@@ -171,28 +192,9 @@ export default function MuseScreen() {
         const packed = await packTravel({
           userId: user.id,
           wardrobe: rows,
-          destination: { name: 'Weekend trip' },
-          days: [
-            {
-              date: 'day-1',
-              label: 'Day 1',
-              occasion,
-              weather,
-            },
-            {
-              date: 'day-2',
-              label: 'Day 2',
-              occasion: occasion === 'formal' ? 'smart-casual' : 'formal',
-              weather: { temperature_c: Math.max(6, (weather.temperature_c ?? 18) - 6) },
-            },
-            {
-              date: 'day-3',
-              label: 'Day 3',
-              occasion: 'casual',
-              weather: { temperature_c: (weather.temperature_c ?? 18) + 2 },
-            },
-          ],
-          luggage: { max_items: 12, prefer_rewear: true, max_core_reuses: 1 },
+          destination: { name: 'This week' },
+          days: buildWeekDays(occasion, weather),
+          luggage: { max_items: 18, prefer_rewear: true, max_core_reuses: 2 },
           marketplace,
           marketplaceProducts: marketplaceOn
             ? marketplaceProductsForGender(profile?.gender)
@@ -208,7 +210,7 @@ export default function MuseScreen() {
           wardrobe: rows,
           occasion,
           weather,
-          limit: 3,
+          limit: 6,
           profile,
           marketplace,
           marketplaceProducts: marketplaceOn
@@ -284,34 +286,33 @@ export default function MuseScreen() {
     const pieces: Array<{
       role: string;
       garment?: ClosetGarment;
+      imageUrl?: string | null;
+      source: 'closet' | 'shop';
       marketplaceLabel?: string;
     }> = [];
-    for (const role of order) {
-      const id = roles[role];
-      if (!id || seen.has(id)) continue;
+    const pushPiece = (role: string, id: string) => {
+      if (!id || seen.has(id)) return;
       seen.add(id);
       const market = marketById.get(id);
+      const product = market ? resolveMarketProduct(market) : null;
       pieces.push({
         role,
         garment: garmentById.get(id),
+        imageUrl: product?.image_url ?? market?.image_url ?? null,
+        source: market ? 'shop' : 'closet',
         marketplaceLabel: market
-          ? `${market.brand ?? 'Market'} ${market.subcategory ?? market.category ?? 'piece'}${
-              market.price != null ? ` · $${market.price}` : ''
-            }`
+          ? `${product?.brand ?? market.brand ?? 'Shop'} ${
+              product?.name ?? market.name ?? market.subcategory ?? 'piece'
+            }${market.price != null ? ` · $${market.price}` : ''}`
           : undefined,
       });
+    };
+    for (const role of order) {
+      const id = roles[role];
+      if (id) pushPiece(role, id);
     }
     for (const id of featured.items ?? []) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const market = marketById.get(id);
-      pieces.push({
-        role: 'top',
-        garment: garmentById.get(id),
-        marketplaceLabel: market
-          ? `${market.brand ?? 'Market'} ${market.subcategory ?? 'piece'}`
-          : undefined,
-      });
+      pushPiece('top', id);
     }
     return pieces;
   }, [featured, garmentById]);
@@ -350,11 +351,12 @@ export default function MuseScreen() {
     role: string;
     garment?: ClosetGarment;
     marketplaceLabel?: string;
+    source?: 'closet' | 'shop';
   }) => {
     if (piece?.marketplaceLabel) {
       Alert.alert(
         piece.marketplaceLabel,
-        `${piece.role.replace('_', ' ')} · marketplace suggestion`,
+        `${piece.role.replace('_', ' ')} · from the shop (fills a gap in this look)`,
       );
       return;
     }
@@ -497,12 +499,10 @@ export default function MuseScreen() {
             />
           }>
           <View style={styles.titleRow}>
-            <View>
+            <View style={styles.titleCopy}>
               <Text style={styles.title}>Muse</Text>
               <Text style={styles.subtitle}>
-                {mode === 'travel'
-                  ? 'Multi-day packing from your closet'
-                  : 'Outfits built from your closet'}
+                {mode === 'travel' ? 'Your week of outfits' : 'Looks from your closet'}
               </Text>
             </View>
             <Pressable
@@ -529,7 +529,7 @@ export default function MuseScreen() {
                   styles.modeChipText,
                   mode === 'outfits' && styles.modeChipTextActive,
                 ]}>
-                Outfits
+                Today
               </Text>
             </Pressable>
             <Pressable
@@ -540,7 +540,7 @@ export default function MuseScreen() {
                   styles.modeChipText,
                   mode === 'travel' && styles.modeChipTextActive,
                 ]}>
-                Travel
+                This week
               </Text>
             </Pressable>
             <Pressable
@@ -582,7 +582,7 @@ export default function MuseScreen() {
             <View style={styles.stateBlock}>
               <ActivityIndicator color={Colors.light.primary} />
               <Text style={styles.stateText}>
-                {mode === 'travel' ? 'Packing your trip…' : 'Asking Muse…'}
+                {mode === 'travel' ? 'Building your week…' : 'Asking Muse…'}
               </Text>
             </View>
           ) : statusMessage ? (
@@ -608,39 +608,48 @@ export default function MuseScreen() {
 
           {loading || statusMessage ? null : mode === 'travel' && travel ? (
             <View style={styles.featureCard}>
-              <Text style={styles.outfitTitle}>
-                {travel.destination?.name ?? 'Trip plan'}
-              </Text>
+              <Text style={styles.outfitTitle}>This week</Text>
               <Text style={styles.metaLine}>
-                {travel.model_version} · {travel.luggage?.unique_items ?? 0} pieces ·{' '}
-                {travel.luggage?.total_weight_kg ?? '?'} kg
+                {travel.day_plans?.length ?? 0} days · {travel.luggage?.unique_items ?? 0} pieces
               </Text>
               {(travel.day_plans ?? []).map((day) => (
                 <View key={day.date} style={styles.dayBlock}>
                   <Text style={styles.dayTitle}>
-                    {day.label ?? day.date} · {day.occasion ?? 'look'}
+                    {day.label ?? day.date}
+                    {day.occasion ? ` · ${day.occasion}` : ''}
                   </Text>
                   <Text style={styles.dayMeta}>
                     {typeof day.weather?.temperature_c === 'number'
                       ? `${day.weather.temperature_c}°`
-                      : 'weather n/a'}
-                    {day.outfit ? ` · ${scoreLabel(day.outfit.score)}` : ' · no outfit'}
-                    {day.outfit?.mixed ? ' · mixed' : ''}
+                      : '—'}
+                    {day.outfit ? ` · ${scoreLabel(day.outfit.score)}` : ' · no look'}
+                    {day.outfit?.mixed ? ' · + shop' : ''}
                   </Text>
-                  {day.outfit?.reasons?.[0] ? (
-                    <Text style={styles.dayReason}>{day.outfit.reasons[0]}</Text>
-                  ) : null}
                 </View>
               ))}
               {travel.marketplace_suggestions?.length ? (
                 <>
-                  <Text style={styles.moreTitle}>Suggested buys</Text>
-                  {travel.marketplace_suggestions.slice(0, 4).map((item) => (
-                    <Text key={item.product_id} style={styles.dayReason}>
-                      {item.brand ?? 'Market'} {item.subcategory ?? item.category}
-                      {item.price != null ? ` · $${item.price}` : ''}
-                    </Text>
-                  ))}
+                  <Text style={styles.moreTitle}>From the shop</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.marketRow}>
+                    {travel.marketplace_suggestions.slice(0, 6).map((item) => {
+                      const product = resolveMarketProduct(item);
+                      if (!product?.image_url) return null;
+                      return (
+                        <MarketplaceProductTile
+                          key={item.product_id}
+                          product={product}
+                          badge="Muse"
+                          compact
+                          onPress={() =>
+                            Alert.alert(product.name, `${product.brand} · $${product.price}`)
+                          }
+                        />
+                      );
+                    })}
+                  </ScrollView>
                 </>
               ) : null}
             </View>
@@ -651,7 +660,7 @@ export default function MuseScreen() {
                 <View style={styles.cardHeader}>
                   <Text style={styles.outfitTitle} numberOfLines={2}>
                     {outfitTitle(featured, occasionLabel)}
-                    {featured.mixed ? ' · + market' : ''}
+                    {featured.mixed ? ' · + shop' : ''}
                   </Text>
                   <View style={styles.score}>
                     <Text style={styles.scoreText}>{scoreLabel(featured.score)}</Text>
@@ -664,6 +673,7 @@ export default function MuseScreen() {
                     onPress={() => describePiece(featuredPieces[0])}>
                     <GarmentCutoutTile
                       garment={featuredPieces[0]?.garment}
+                      imageUrl={featuredPieces[0]?.imageUrl}
                       role={featuredPieces[0]?.role ?? 'top'}
                       background={Colors.light.softBlue}
                       style={styles.mainTile}
@@ -673,6 +683,7 @@ export default function MuseScreen() {
                     <Pressable onPress={() => describePiece(featuredPieces[1])}>
                       <GarmentCutoutTile
                         garment={featuredPieces[1]?.garment}
+                        imageUrl={featuredPieces[1]?.imageUrl}
                         role={featuredPieces[1]?.role ?? 'bottom'}
                         background={Colors.light.sand}
                         style={styles.sideTile}
@@ -681,6 +692,7 @@ export default function MuseScreen() {
                     <Pressable onPress={() => describePiece(featuredPieces[2])}>
                       <GarmentCutoutTile
                         garment={featuredPieces[2]?.garment}
+                        imageUrl={featuredPieces[2]?.imageUrl}
                         role={featuredPieces[2]?.role ?? 'footwear'}
                         background={Colors.light.softBlue}
                         style={styles.sideTile}
@@ -698,21 +710,11 @@ export default function MuseScreen() {
                       <Text style={styles.tagText}>{reason}</Text>
                     </View>
                   ))}
-                  {featured.marketplace_items?.length ? (
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>
-                        Buy:{' '}
-                        {featured.marketplace_items
-                          .map((item) => item.subcategory ?? item.category)
-                          .join(', ')}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
 
                 {featured.marketplace_items?.length ? (
                   <View style={styles.marketPickBlock}>
-                    <Text style={styles.moreTitle}>Muse picked from market</Text>
+                    <Text style={styles.sectionLabel}>From the shop</Text>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -729,7 +731,7 @@ export default function MuseScreen() {
                             onPress={() =>
                               Alert.alert(
                                 product.name,
-                                `${product.brand} · $${product.price}\n${item.role ?? 'piece'} suggested to complete this look.`,
+                                `${product.brand} · $${product.price}`,
                               )
                             }
                           />
@@ -808,9 +810,13 @@ export default function MuseScreen() {
                 <>
                   <Text style={styles.moreTitle}>More from Muse</Text>
                   <View style={styles.suggestions}>
-                    {moreOutfits.map((outfit) => {
+                    {moreOutfits.slice(0, 3).map((outfit) => {
                       const firstId = outfit.items?.[0];
+                      const market = (outfit.marketplace_items ?? []).find(
+                        (item) => item.product_id === firstId,
+                      );
                       const first = firstId ? garmentById.get(firstId) : undefined;
+                      const product = market ? resolveMarketProduct(market) : null;
                       return (
                         <Pressable
                           key={outfit.outfit_id}
@@ -822,6 +828,7 @@ export default function MuseScreen() {
                           }}>
                           <GarmentCutoutTile
                             garment={first}
+                            imageUrl={product?.image_url}
                             role="top"
                             background={Colors.light.canvas}
                             compact
@@ -837,60 +844,6 @@ export default function MuseScreen() {
                   </View>
                 </>
               ) : null}
-
-              {marketplaceOn ? (
-                <>
-                  <Text style={styles.moreTitle}>Partner catalog</Text>
-                  <Text style={styles.catalogHint}>
-                    Muse pulls from this catalog when your closet is missing a piece.
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.marketRow}>
-                    {MARKETPLACE_CATALOG.filter((item) => item.in_stock)
-                      .slice(0, 10)
-                      .map((product) => (
-                        <MarketplaceProductTile
-                          key={product.id}
-                          product={product}
-                          onPress={() =>
-                            Alert.alert(
-                              product.name,
-                              `${product.brand} · $${product.price}\n${product.subcategory ?? product.category}`,
-                            )
-                          }
-                        />
-                      ))}
-                  </ScrollView>
-                </>
-              ) : null}
-            </>
-          ) : null}
-
-          {!loading && !statusMessage && !featured && marketplaceOn ? (
-            <>
-              <Text style={styles.moreTitle}>Partner catalog</Text>
-              <Text style={styles.catalogHint}>
-                Market is on — Muse will pull from these when your closet has gaps.
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.marketRow}>
-                {MARKETPLACE_CATALOG.filter((item) => item.in_stock).map((product) => (
-                  <MarketplaceProductTile
-                    key={product.id}
-                    product={product}
-                    onPress={() =>
-                      Alert.alert(
-                        product.name,
-                        `${product.brand} · $${product.price}\n${product.subcategory ?? product.category}`,
-                      )
-                    }
-                  />
-                ))}
-              </ScrollView>
             </>
           ) : null}
         </ScrollView>
@@ -916,6 +869,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
+  },
+  titleCopy: {
+    flex: 1,
+    paddingRight: 4,
   },
   chatButton: {
     height: 48,
@@ -980,14 +938,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingBottom: 4,
   },
-  catalogHint: {
-    marginTop: -4,
-    marginBottom: 12,
-    fontFamily: Typeface.body,
-    fontSize: 13,
-    lineHeight: 18,
-    color: Colors.light.textSecondary,
-  },
   metaLine: {
     marginBottom: 10,
     fontFamily: Typeface.body,
@@ -1029,6 +979,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.primary,
     marginTop: 2,
+  },
+  sectionLabel: {
+    marginBottom: 10,
+    fontSize: 15,
+    fontFamily: Typeface.bodyStrong,
+    color: Colors.light.primary,
   },
   filters: {
     flexDirection: 'row',

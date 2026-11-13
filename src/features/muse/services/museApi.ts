@@ -116,8 +116,20 @@ export type MuseMarketplaceOptions = {
   budget_max?: number;
   budget_min?: number;
   sizes?: string[];
+  /** Muse garment categories, e.g. bottoms / outerwear / footwear */
+  categories?: string[];
   include_mixed?: boolean;
   max_products?: number;
+};
+
+export type MusePreferencesOverride = {
+  gender?: string;
+  preferred_styles?: string[];
+  favorite_colors?: string[];
+  preferred_garment_types?: string[];
+  avoid_garment_ids?: string[];
+  avoid_subcategories?: string[];
+  avoid_categories?: string[];
 };
 
 export type MuseTravelDayPlan = {
@@ -235,8 +247,18 @@ async function museFetch(path: string, body: unknown, timeoutMs = 15000) {
   return response;
 }
 
+const CATEGORY_ALIASES: Record<string, string> = {
+  shoes: 'footwear',
+  shoe: 'footwear',
+  pants: 'bottoms',
+  dress: 'one-piece',
+  dresses: 'one-piece',
+  accessory: 'accessories',
+};
+
 export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
-  const category = (garment.category ?? '').toLowerCase();
+  const rawCategory = (garment.category ?? '').toLowerCase();
+  const category = CATEGORY_ALIASES[rawCategory] ?? rawCategory;
   const mapped: MuseGarment = {
     id: garment.id,
     subcategory: garment.subcategory,
@@ -331,6 +353,7 @@ export async function recommendOutfits(input: {
   weather?: MuseWeather;
   limit?: number;
   profile?: ClosetteUserProfile | null;
+  preferencesOverride?: MusePreferencesOverride;
   marketplace?: MuseMarketplaceOptions;
   marketplaceProducts?: MuseGarment[];
 }): Promise<MuseRecommendResponse> {
@@ -342,6 +365,9 @@ export async function recommendOutfits(input: {
     profile: buildMuseProfile(input.profile ?? null),
     wardrobe: input.wardrobe.map(closetGarmentToMuse),
   };
+  if (input.preferencesOverride) {
+    body.preferences_override = input.preferencesOverride;
+  }
   if (input.marketplace) body.marketplace = input.marketplace;
   if (input.marketplaceProducts?.length) {
     body.marketplace_products = input.marketplaceProducts;

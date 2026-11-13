@@ -10,6 +10,8 @@ type GarmentKind = 'shirt' | 'pants' | 'shoe';
 
 type Props = {
   garment?: ClosetGarment;
+  /** Marketplace / remote photo when the piece is not in the closet. */
+  imageUrl?: string | null;
   role?: string;
   background?: string;
   style?: StyleProp<ViewStyle>;
