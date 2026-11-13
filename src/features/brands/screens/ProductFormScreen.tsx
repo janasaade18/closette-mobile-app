@@ -7,6 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import { authErrorMessage } from '@/features/auth/userProfile';
+import { InactiveBrandNotice } from '@/features/brands/components/InactiveBrandNotice';
 import { Field, PrimaryButton, ProgressLabel } from '@/features/brands/components/FormKit';
 import {
   createProduct,
@@ -20,7 +21,7 @@ import { PRODUCT_CATEGORIES, type CatalogProduct } from '@/features/catalog/type
 
 export default function ProductFormScreen() {
   const router = useRouter();
-  const { brandId } = useAuth();
+  const { brandId, brandActive } = useAuth();
   const { productId } = useLocalSearchParams<{ productId?: string }>();
   const editing = Boolean(productId);
   const [brandName, setBrandName] = useState('');
@@ -159,6 +160,8 @@ export default function ProductFormScreen() {
   };
 
   const preview = imageUri || existing?.imageUrl;
+
+  if (!brandActive) return <InactiveBrandNotice />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>

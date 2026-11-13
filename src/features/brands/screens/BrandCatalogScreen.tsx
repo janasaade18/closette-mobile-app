@@ -7,6 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import { authErrorMessage } from '@/features/auth/userProfile';
+import { InactiveBrandNotice } from '@/features/brands/components/InactiveBrandNotice';
 import { StatusBlock } from '@/features/brands/components/FormKit';
 import { fetchBrand, fetchOwnedProducts } from '@/features/catalog/api';
 import { formatPrice, type CatalogProduct } from '@/features/catalog/types';
@@ -15,7 +16,7 @@ type Filter = 'all' | 'active' | 'hidden';
 
 export default function BrandCatalogScreen() {
   const router = useRouter();
-  const { brandId } = useAuth();
+  const { brandId, brandActive } = useAuth();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -50,6 +51,8 @@ export default function BrandCatalogScreen() {
       return [product.name, product.category ?? ''].join(' ').toLowerCase().includes(search);
     });
   }, [filter, products, query]);
+
+  if (!brandActive) return <InactiveBrandNotice />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
