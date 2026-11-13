@@ -34,6 +34,14 @@ export function mapBrand(row: BrandRow): CatalogBrand {
     name: row.name,
     description: row.description,
     logoUrl: brandImageUrl(row.logo_url, row.logo_url),
+    coverUrl: brandImageUrl(row.cover_url, row.cover_url),
+    website: row.website,
+    instagram: row.instagram,
+    contactEmail: row.contact_email,
+    phone: row.phone,
+    city: row.city,
+    country: row.country,
+    category: row.category,
     ownerUserId: row.owner_user_id,
     isActive: row.is_active,
     createdAt: row.created_at,
@@ -135,6 +143,13 @@ export async function fetchActiveCatalog() {
   return products;
 }
 
+export async function fetchBrandStats(brandId: string) {
+  const { data, error } = await supabase.from('brand_products').select('is_active').eq('brand_id', brandId);
+  if (error) throw error;
+  const rows = data ?? [];
+  return { total: rows.length, active: rows.filter((row) => row.is_active).length };
+}
+
 export async function fetchOwnedProducts(brandId: string, brandName: string) {
   const { data, error } = await supabase
     .from('brand_products')
@@ -146,7 +161,7 @@ export async function fetchOwnedProducts(brandId: string, brandName: string) {
   return (data ?? []).map((row) => mapProduct(row, brandName));
 }
 
-export async function pickCatalogImage() {
+export async function pickCatalogImage(aspect: [number, number] = [1, 1]) {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     throw new Error('Allow photo access to upload an image.');
@@ -155,7 +170,7 @@ export async function pickCatalogImage() {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: true,
-    aspect: [1, 1],
+    aspect,
     quality: 0.7,
   });
 
@@ -193,14 +208,51 @@ export async function uploadBrandImage(input: {
   return path;
 }
 
+export const AVATAR_BUCKET = 'avatars';
+
+export function avatarImageUrl(path: string | null) {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+export async function uploadAvatar(input: { userId: string; uri: string; onProgress?: (value: number) => void }) {
+  input.onProgress?.(0.15);
+  const base64 = await FileSystem.readAsStringAsync(input.uri, { encoding: FileSystem.EncodingType.Base64 });
+  input.onProgress?.(0.45);
+  const path = `${input.userId}/avatar.jpg`;
+  const { error } = await supabase.storage.from(AVATAR_BUCKET).upload(path, decodeBase64(base64), {
+    contentType: 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  input.onProgress?.(1);
+  return path;
+}
+
+export async function removeAvatar(userId: string) {
+  await supabase.storage.from(AVATAR_BUCKET).remove([`${userId}/avatar.jpg`]);
+}
+
 export async function updateBrandProfile(input: {
   brandId: string;
   name: string;
   description: string | null;
+  category?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  contactEmail?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  country?: string | null;
   logoUri?: string | null;
+  coverUri?: string | null;
+  removeLogo?: boolean;
+  removeCover?: boolean;
   onProgress?: (value: number) => void;
 }) {
   let logoPath: string | undefined;
+  let coverPath: string | undefined;
   if (input.logoUri) {
     logoPath = await uploadBrandImage({
       brandId: input.brandId,
@@ -209,13 +261,37 @@ export async function updateBrandProfile(input: {
       onProgress: input.onProgress,
     });
   }
+  if (input.coverUri) {
+    coverPath = await uploadBrandImage({
+      brandId: input.brandId,
+      fileName: 'cover.jpg',
+      uri: input.coverUri,
+      onProgress: input.onProgress,
+    });
+  }
+  if (input.removeLogo) {
+    await supabase.storage.from(BRAND_IMAGE_BUCKET).remove([`${input.brandId}/logo.jpg`]);
+  }
+  if (input.removeCover) {
+    await supabase.storage.from(BRAND_IMAGE_BUCKET).remove([`${input.brandId}/cover.jpg`]);
+  }
 
   const { data, error } = await supabase
     .from('brands')
     .update({
       name: input.name,
       description: input.description,
+      ...(input.category !== undefined ? { category: input.category } : {}),
+      ...(input.website !== undefined ? { website: input.website } : {}),
+      ...(input.instagram !== undefined ? { instagram: input.instagram } : {}),
+      ...(input.contactEmail !== undefined ? { contact_email: input.contactEmail } : {}),
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.city !== undefined ? { city: input.city } : {}),
+      ...(input.country !== undefined ? { country: input.country } : {}),
       ...(logoPath ? { logo_url: logoPath } : {}),
+      ...(coverPath ? { cover_url: coverPath } : {}),
+      ...(input.removeLogo ? { logo_url: null } : {}),
+      ...(input.removeCover ? { cover_url: null } : {}),
     })
     .eq('id', input.brandId)
     .select('*')
@@ -236,38 +312,47 @@ export async function createProduct(input: {
   imageUri: string;
   onProgress?: (value: number) => void;
 }) {
-  const id = globalThis.crypto.randomUUID();
-  const imagePath = await uploadBrandImage({
-    brandId: input.brandId,
-    fileName: `${id}.jpg`,
-    uri: input.imageUri,
-    onProgress: input.onProgress,
-  });
-
-  const { data, error } = await supabase
+  const { data: created, error: insertError } = await supabase
     .from('brand_products')
     .insert({
-      id,
       brand_id: input.brandId,
       name: input.name,
       description: input.description,
       price: input.price,
       category: input.category,
-      image_path: imagePath,
+      image_path: null,
       is_active: true,
     })
     .select('*')
     .single();
+  if (insertError) throw insertError;
 
-  if (error) {
-    await supabase.storage.from(BRAND_IMAGE_BUCKET).remove([imagePath]);
-    throw error;
+  let imagePath: string | null = null;
+  try {
+    imagePath = await uploadBrandImage({
+      brandId: input.brandId,
+      fileName: `${created.id}.jpg`,
+      uri: input.imageUri,
+      onProgress: input.onProgress,
+    });
+    const { data, error } = await supabase
+      .from('brand_products')
+      .update({ image_path: imagePath })
+      .eq('id', created.id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    input.onProgress?.(1);
+    const product = mapProduct(data, input.brandName);
+    rememberProducts([product]);
+    return product;
+  } catch (err) {
+    if (imagePath) {
+      await supabase.storage.from(BRAND_IMAGE_BUCKET).remove([imagePath]);
+    }
+    await supabase.from('brand_products').delete().eq('id', created.id);
+    throw err;
   }
-
-  input.onProgress?.(1);
-  const product = mapProduct(data, input.brandName);
-  rememberProducts([product]);
-  return product;
 }
 
 export async function updateProduct(input: {

@@ -10,11 +10,22 @@ export const PRODUCT_CATEGORIES = [
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 
+export const BRAND_CATEGORIES = ['Clothing', 'Shoes', 'Accessories', 'Mixed'] as const;
+export type BrandCategory = (typeof BRAND_CATEGORIES)[number];
+
 export type CatalogBrand = {
   id: string;
   name: string;
   description: string | null;
   logoUrl: string | null;
+  coverUrl: string | null;
+  website: string | null;
+  instagram: string | null;
+  contactEmail: string | null;
+  phone: string | null;
+  city: string | null;
+  country: string | null;
+  category: string | null;
   ownerUserId: string;
   isActive: boolean;
   createdAt: string;
