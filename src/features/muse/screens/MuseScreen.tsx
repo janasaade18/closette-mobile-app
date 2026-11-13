@@ -430,7 +430,7 @@ export default function MuseScreen() {
     if (result?.status === 'weather_unsuitable') {
       return (
         result.message ??
-        'Nothing in your closet fits this weather. Try another temperature or add better pieces.'
+        'Not recommended for this weather — nothing in your closet fits. Try another temperature or add better pieces.'
       );
     }
     if (result?.status === 'insufficient_candidates') {
