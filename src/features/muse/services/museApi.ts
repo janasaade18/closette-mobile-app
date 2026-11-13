@@ -74,13 +74,24 @@ export type MuseRankingMeta = {
 export type MuseRecommendResponse = {
   api_version: string;
   model_version: string;
-  status: 'ok' | 'empty_wardrobe' | 'insufficient_candidates' | string;
+  status:
+    | 'ok'
+    | 'empty_wardrobe'
+    | 'insufficient_candidates'
+    | 'weather_unsuitable'
+    | 'weather_compromise'
+    | string;
   recommendation_id: string;
   recommendations: MuseOutfit[];
   ranking?: MuseRankingMeta;
   warnings?: Array<string | { code?: string; message?: string }>;
   excluded_items?: Array<{ item_id: string; rules: string[] }>;
   marketplace_excluded?: Array<{ id: string; reason: string }>;
+  weather?: {
+    temperature_c?: number | null;
+    advice?: string | null;
+    excluded_for_temperature?: number;
+  };
   message?: string;
   error?: string;
   score_semantics?: string;

@@ -427,12 +427,28 @@ export default function MuseScreen() {
       if (!travel?.day_plans?.length) return 'No travel plan yet.';
       return null;
     }
+    if (result?.status === 'weather_unsuitable') {
+      return (
+        result.message ??
+        'Nothing in your closet fits this weather. Try another temperature or add better pieces.'
+      );
+    }
     if (result?.status === 'insufficient_candidates') {
       return 'Need a top, bottom, and shoes (or a one-piece and shoes) in your closet.';
     }
-    if (!featured) return 'No outfits yet.';
+    // weather_compromise still returns outfits — show them with a warning chip.
+    if (!featured && mode !== 'travel') return 'No outfits yet.';
     return null;
   })();
+
+  const weatherWarning =
+    result?.status === 'weather_compromise'
+      ? result.message
+      : result?.weather?.advice && result?.warnings?.some((w) =>
+          typeof w === 'object' && w?.code === 'weather_excluded_items',
+        )
+        ? result.weather.advice
+        : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -546,13 +562,22 @@ export default function MuseScreen() {
               {error ? (
                 <Text style={styles.hostHint}>Expected Muse at {museBaseUrl()}</Text>
               ) : null}
-              {!user ? null : result?.status === 'empty_wardrobe' ? (
+              {!user ? null : result?.status === 'empty_wardrobe' ||
+                result?.status === 'weather_unsuitable' ? (
                 <Pressable style={styles.tryButton} onPress={() => router.push('/closet')}>
                   <Text style={styles.tryText}>Open closet</Text>
                 </Pressable>
               ) : null}
             </View>
-          ) : mode === 'travel' && travel ? (
+          ) : null}
+
+          {weatherWarning && !loading && !statusMessage ? (
+            <View style={styles.warningBanner}>
+              <Text style={styles.warningText}>{weatherWarning}</Text>
+            </View>
+          ) : null}
+
+          {loading || statusMessage ? null : mode === 'travel' && travel ? (
             <View style={styles.featureCard}>
               <Text style={styles.outfitTitle}>
                 {travel.destination?.name ?? 'Trip plan'}
@@ -840,6 +865,19 @@ const styles = StyleSheet.create({
     fontFamily: Typeface.body,
     fontSize: 12,
     color: Colors.light.textSecondary,
+  },
+  warningBanner: {
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
+    backgroundColor: Colors.light.rustTile,
+  },
+  warningText: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.light.primary,
   },
   dayBlock: {
     marginTop: 14,
