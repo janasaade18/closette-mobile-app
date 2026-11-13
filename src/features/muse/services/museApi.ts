@@ -268,15 +268,47 @@ export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
   return mapped;
 }
 
+const ACCENT_HEX_TO_COLOR: Record<string, string> = {
+  '#12263f': 'navy',
+  '#7e93ab': 'grey',
+  '#e7d5b8': 'beige',
+  '#d7e2f0': 'blue',
+  '#5c6b73': 'grey',
+  '#3d5a4c': 'olive',
+  '#8c4a3a': 'brown',
+  '#6f5b7e': 'purple',
+  '#b66a73': 'pink',
+  '#c28b4a': 'brown',
+};
+
+function normalizeStyleTag(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+function normalizeColorToken(value: string) {
+  const raw = value.trim().toLowerCase();
+  if (raw.startsWith('#')) return ACCENT_HEX_TO_COLOR[raw] ?? null;
+  return raw || null;
+}
+
+/** Map onboarding profile fields into Muse ranking prefs. */
 export function buildMuseProfile(profile: ClosetteUserProfile | null) {
   if (!profile) return undefined;
+  const preferred_styles = (profile.preferred_styles ?? [])
+    .map(normalizeStyleTag)
+    .filter(Boolean);
+  const favorite_colors = (profile.preferred_colors ?? [])
+    .map(normalizeColorToken)
+    .filter((value): value is string => Boolean(value));
+  const preferred_garment_types = (profile.preferred_clothing ?? [])
+    .map(normalizeStyleTag)
+    .filter(Boolean);
+
   return {
     gender: profile.gender ?? undefined,
-    preferred_styles: profile.preferred_styles ?? [],
-    favorite_colors: (profile.preferred_colors ?? []).map((c) =>
-      c.trim().toLowerCase(),
-    ),
-    preferred_garment_types: profile.preferred_clothing ?? [],
+    preferred_styles,
+    favorite_colors,
+    preferred_garment_types,
   };
 }
 
