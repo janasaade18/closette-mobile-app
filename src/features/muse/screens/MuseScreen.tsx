@@ -23,9 +23,8 @@ import {
 import type { ClosetGarment } from '@/features/closet/types';
 import { GarmentCutoutTile } from '@/features/muse/components/GarmentCutoutTile';
 import { MarketplaceProductTile } from '@/features/muse/components/MarketplaceProductTile';
-import { marketplaceProductById } from '@/features/muse/data/marketplaceCatalog';
+import { catalogProductById, fetchMuseMarketplaceProducts } from '@/features/catalog/api';
 import {
-  marketplaceProductsForGender,
   museBaseUrl,
   packTravel,
   rankingSummary,
@@ -102,8 +101,19 @@ function weatherChipLabel(weather: MuseWeather) {
 }
 
 function resolveMarketProduct(item: MuseMarketplaceItem) {
-  const fromCatalog = marketplaceProductById(item.product_id);
-  if (fromCatalog) return fromCatalog;
+  const fromCatalog = catalogProductById(item.product_id);
+  if (fromCatalog) {
+    return {
+      id: fromCatalog.id,
+      name: fromCatalog.name,
+      brand: fromCatalog.brandName,
+      price: fromCatalog.price ?? 0,
+      currency: 'USD',
+      category: fromCatalog.category ?? undefined,
+      image_url: fromCatalog.imageUrl ?? '',
+      in_stock: fromCatalog.isActive,
+    };
+  }
   if (!item.image_url && !item.name) return null;
   return {
     id: item.product_id,
@@ -197,7 +207,7 @@ export default function MuseScreen() {
           luggage: { max_items: 18, prefer_rewear: true, max_core_reuses: 2 },
           marketplace,
           marketplaceProducts: marketplaceOn
-            ? marketplaceProductsForGender(profile?.gender)
+            ? await fetchMuseMarketplaceProducts()
             : undefined,
           profile,
         });
@@ -214,7 +224,7 @@ export default function MuseScreen() {
           profile,
           marketplace,
           marketplaceProducts: marketplaceOn
-            ? marketplaceProductsForGender(profile?.gender)
+            ? await fetchMuseMarketplaceProducts()
             : undefined,
         });
         setResult(next);

@@ -2,7 +2,6 @@ import Constants from 'expo-constants';
 
 import type { ClosetteUserProfile } from '@/features/auth/types';
 import type { ClosetGarment } from '@/features/closet/types';
-import { museMarketplaceProducts } from '@/features/muse/data/marketplaceCatalog';
 
 export type MuseOccasion = 'casual' | 'smart-casual' | 'work' | 'formal' | string;
 
@@ -467,10 +466,4 @@ export async function packTravel(input: {
   return json;
 }
 
-/** Photo-backed demo catalog — see `marketplaceCatalog.ts`. */
-export const DEMO_MARKETPLACE_PRODUCTS = museMarketplaceProducts();
-
-export function marketplaceProductsForGender(gender?: string | null) {
-  return museMarketplaceProducts(gender);
-}
 
