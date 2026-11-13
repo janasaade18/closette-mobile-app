@@ -18,6 +18,21 @@ export async function fetchUserProfile(userId: string) {
   return data as ClosetteUserProfile | null;
 }
 
+export async function fetchOwnedBrandId(userId: string) {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('id')
+    .eq('owner_user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Failed to load owned brand', error.message);
+    return null;
+  }
+
+  return data?.id ?? null;
+}
+
 export async function saveOnboardingProfile(
   userId: string,
   preferences: UserPreferences,

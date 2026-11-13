@@ -12,12 +12,15 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 import type { ClosetteUserProfile } from './types';
-import { authErrorMessage, fetchUserProfile } from './userProfile';
+import { authErrorMessage, fetchOwnedBrandId, fetchUserProfile } from './userProfile';
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   profile: ClosetteUserProfile | null;
+  role: 'admin' | 'user';
+  isAdmin: boolean;
+  brandId: string | null;
   loading: boolean;
   signUp: (input: {
     email: string;
@@ -36,16 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ClosetteUserProfile | null>(null);
+  const [brandId, setBrandId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
     try {
       const next = await fetchUserProfile(userId);
       setProfile(next);
+      setBrandId(await fetchOwnedBrandId(userId));
       return next;
     } catch (error) {
       console.warn('Failed to load Closette profile', authErrorMessage(error));
       setProfile(null);
+      setBrandId(null);
       return null;
     }
   }, []);
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           void loadProfile(nextSession.user.id);
         } else {
           setProfile(null);
+          setBrandId(null);
         }
       },
     );
@@ -149,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
     setProfile(null);
+    setBrandId(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -164,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user,
       profile,
+      role: (profile?.role === 'admin' ? 'admin' : 'user') as 'admin' | 'user',
+      isAdmin: profile?.role === 'admin',
+      brandId,
       loading,
       signUp,
       signIn,
@@ -171,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       setProfile,
     }),
-    [session, user, profile, loading, signUp, signIn, signOut, refreshProfile],
+    [session, user, profile, brandId, loading, signUp, signIn, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

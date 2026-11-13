@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import type { Database } from '@/lib/database.types';
+
 const extra = Constants.expoConfig?.extra as
   | { supabaseUrl?: string; supabaseAnonKey?: string }
   | undefined;
@@ -48,7 +50,7 @@ const authStorage = {
   },
 };
 
-export const supabase = createClient(url, anonKey, {
+export const supabase = createClient<Database>(url, anonKey, {
   auth: {
     storage: authStorage,
     autoRefreshToken: !isServer,
