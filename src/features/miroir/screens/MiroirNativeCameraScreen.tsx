@@ -1,38 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 
 import { Colors, Typeface } from '@/constants/theme';
 import AccessoriesIcon from '@/components/AccessoriesIcon';
-import ShopProductIllustration from '@/features/shop/components/ShopProductIllustration';
-import { shopProducts, type ShopProduct } from '@/features/shop/data/products';
+import { fetchActiveCatalog } from '@/features/catalog/api';
+import type { CatalogProduct } from '@/features/catalog/types';
 
 type TryOnCategory = 'Shoes' | 'Accessories';
 type TryOnSource = 'closet' | 'brand';
 type TryOnKind = 'shoe' | 'bag';
-type TryOnItem = { id: string; name: string; price?: string; brand?: string; category: TryOnCategory; kind: TryOnKind; colors: string[]; mark: string; catalogProduct?: ShopProduct };
+type TryOnItem = { id: string; name: string; price?: string; brand?: string; category: TryOnCategory; kind: TryOnKind; colors: string[]; mark: string; imageUrl?: string | null };
 
 const closetItems: TryOnItem[] = [
   { id: 'closet-sneakers', name: 'Sneakers', category: 'Shoes', kind: 'shoe', colors: [Colors.light.navySwatch, Colors.light.sand, Colors.light.blueSlate], mark: 'C' },
 ];
 const palette = [Colors.light.navySwatch, Colors.light.sand, Colors.light.blueSlate, Colors.light.background];
-const brandItems: TryOnItem[] = shopProducts
-  .filter((product) => product.category === 'Shoes' || product.category === 'Bags')
-  .map((product) => ({
-    id: `brand-${product.name.toLowerCase().replace(/\s+/g, '-')}`,
+function toBrandTryOnItem(product: CatalogProduct): TryOnItem | null {
+  const accessory = /bag|accessor/i.test(product.category ?? '');
+  const shoe = /shoe/i.test(product.category ?? '');
+  if (!accessory && !shoe) return null;
+  return {
+    id: product.id,
     name: product.name,
-    price: String(product.price),
-    brand: product.brand,
-    category: product.category === 'Bags' ? 'Accessories' : 'Shoes',
-    kind: product.kind === 'bag' ? 'bag' : 'shoe',
-    colors: [product.tone, ...palette.filter((color) => color !== product.tone)],
-    mark: product.mark,
-    catalogProduct: product,
-  }));
-function getDirectItem(name: string, category: string, price: string, source: string): TryOnItem | null {
+    price: product.price == null ? undefined : String(product.price),
+    brand: product.brandName,
+    category: accessory ? 'Accessories' : 'Shoes',
+    kind: accessory ? 'bag' : 'shoe',
+    colors: palette,
+    mark: product.brandName.slice(0, 1).toUpperCase(),
+    imageUrl: product.imageUrl,
+  };
+}
+function getDirectItem(name: string, category: string, price: string, source: string, brandItems: TryOnItem[]): TryOnItem | null {
   const allItems = [...closetItems, ...brandItems];
   const found = allItems.find((item) => item.name.toLowerCase() === name.toLowerCase());
   if (found) return { ...found, price: source === 'brand' ? price || found.price : undefined, brand: source === 'brand' ? found.brand : undefined };
@@ -50,7 +54,8 @@ export default function MiroirScreen() {
   const isBrowseFlow = params.mode === 'browse';
   const initialSource: TryOnSource = params.source === 'brand' ? 'brand' : 'closet';
   const initialCategory: TryOnCategory = params.category === 'Bags' || params.category === 'Accessories' ? 'Accessories' : 'Shoes';
-  const directItem = isBrowseFlow ? null : getDirectItem(params.product || 'Cloud', params.category || 'Shoes', params.price || '89', params.source || (params.price ? 'brand' : 'closet'));
+  const [brandItems, setBrandItems] = useState<TryOnItem[]>([]);
+  const directItem = isBrowseFlow || !params.product ? null : getDirectItem(params.product, params.category || 'Shoes', params.price || '', params.source || (params.price ? 'brand' : 'closet'), brandItems);
   const [source, setSource] = useState<TryOnSource>(initialSource);
   const [category, setCategory] = useState<TryOnCategory>(initialCategory);
   const [selectedItem, setSelectedItem] = useState<TryOnItem | null>(directItem);
@@ -64,6 +69,21 @@ export default function MiroirScreen() {
   useEffect(() => {
     if (!hasPermission && canRequestPermission) void requestPermission();
   }, [canRequestPermission, hasPermission, requestPermission]);
+  useEffect(() => {
+    void fetchActiveCatalog()
+      .then((products) => {
+        const next = products.flatMap((product) => {
+          const item = toBrandTryOnItem(product);
+          return item ? [item] : [];
+        });
+        setBrandItems(next);
+        if (!isBrowseFlow && params.product && params.source === 'brand') {
+          const match = next.find((item) => item.name.toLowerCase() === params.product?.toLowerCase());
+          if (match) setSelectedItem(match);
+        }
+      })
+      .catch(() => setBrandItems([]));
+  }, [isBrowseFlow, params.product, params.source]);
   const returnTo = typeof params.returnTo === 'string' ? params.returnTo : '/shop';
   const close = () => {
     switch (returnTo) {
@@ -128,7 +148,7 @@ export default function MiroirScreen() {
       </View> : <View style={styles.pickerPanel}>
         <View style={styles.sourceToggle}><Pressable onPress={() => { setSource('closet'); setCategory('Shoes'); }} style={[styles.sourceButton, source === 'closet' && styles.sourceActive]}><Text style={[styles.sourceText, source === 'closet' && styles.sourceActiveText]}>My closet</Text></Pressable><Pressable onPress={() => { setSource('brand'); setCategory('Shoes'); }} style={[styles.sourceButton, source === 'brand' && styles.sourceActive]}><Text style={[styles.sourceText, source === 'brand' && styles.sourceActiveText]}>Brand pieces</Text></Pressable></View>
         <View style={styles.categoryToggle}><Pressable onPress={() => setCategory('Shoes')} style={[styles.categoryButton, category === 'Shoes' && styles.categoryActive]}><SymbolView name={{ ios: 'shoe', android: 'steps', web: 'steps' }} tintColor={category === 'Shoes' ? Colors.light.onPrimary : Colors.light.primary} size={16} /><Text style={[styles.categoryText, category === 'Shoes' && styles.categoryActiveText]}>Shoes</Text></Pressable><Pressable onPress={() => setCategory('Accessories')} style={[styles.categoryButton, category === 'Accessories' && styles.categoryActive]}><AccessoriesIcon size={16} color={category === 'Accessories' ? Colors.light.onPrimary : Colors.light.primary} /><Text style={[styles.categoryText, category === 'Accessories' && styles.categoryActiveText]}>Accessories</Text></Pressable></View>
-        {availableItems.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productList}>{availableItems.map((item) => <Pressable key={item.id} onPress={() => chooseItem(item)} style={styles.pickCard}><View style={[styles.pickImage, { backgroundColor: item.catalogProduct?.tile || Colors.light.softBlue }]}><BrandDot mark={item.mark} accessory={item.category === 'Accessories'} />{item.catalogProduct ? <ShopProductIllustration item={{ ...item.catalogProduct, tone: item.colors[0] }} /> : <TryOnOverlay item={item} color={item.colors[0]} compact />}</View><Text numberOfLines={1} style={styles.pickName}>{item.name}</Text>{item.price ? <Text style={styles.pickPrice}>${item.price}</Text> : <Text style={styles.pickPrice}>Your closet</Text>}</Pressable>)}</ScrollView> : <View style={styles.emptyPicker}><Text style={styles.emptyText}>No {category.toLowerCase()} are in {source === 'closet' ? 'your closet' : 'the brand collection'} yet.</Text></View>}
+        {availableItems.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productList}>{availableItems.map((item) => <Pressable key={item.id} onPress={() => chooseItem(item)} style={styles.pickCard}><View style={[styles.pickImage, { backgroundColor: Colors.light.softBlue }]}><BrandDot mark={item.mark} accessory={item.category === 'Accessories'} />{item.imageUrl ? <Image source={{ uri: item.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : <TryOnOverlay item={item} color={item.colors[0]} compact />}</View><Text numberOfLines={1} style={styles.pickName}>{item.name}</Text>{item.price ? <Text style={styles.pickPrice}>${item.price}</Text> : <Text style={styles.pickPrice}>Your closet</Text>}</Pressable>)}</ScrollView> : <View style={styles.emptyPicker}><Text style={styles.emptyText}>No {category.toLowerCase()} are in {source === 'closet' ? 'your closet' : 'the brand collection'} yet.</Text></View>}
         <Text style={styles.pickerHint}>Choose a piece to see its try-on controls.</Text>
       </View>}
     </SafeAreaView>
@@ -140,7 +160,7 @@ function BrandDot({ mark, accessory = false }: { mark: string; accessory?: boole
 }
 
 function TryOnOverlay({ item, color, compact = false }: { item: TryOnItem; color: string; compact?: boolean }) {
-  if (item.catalogProduct) return <ShopProductIllustration item={{ ...item.catalogProduct, tone: color }} large={!compact} />;
+  if (item.imageUrl) return <Image source={{ uri: item.imageUrl }} style={compact ? { width: 72, height: 56 } : { width: 180, height: 160 }} contentFit="contain" />;
   return <View pointerEvents="none" style={[styles.overlayShoe, compact && styles.compactShoe]}><View style={[styles.shoeUpper, { backgroundColor: color }, compact && styles.compactShoeUpper]} /><View style={[styles.shoeSole, compact && styles.compactSole]} /><View style={styles.shoeLace} /></View>;
 }
 

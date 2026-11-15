@@ -41,6 +41,20 @@ This command will move the starter code to the **app-example** directory and cre
 - If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
 - Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
+## Brand collaborations
+
+Apply `supabase/migrations/20261113_brand_collabs.sql` in the Nest backend repo, then start that API (`npm run start:dev`, port 3000). Brand logins are created by `POST /brands`. The service-role key stays in the backend `.env` and must not be added to this app. Point `EXPO_PUBLIC_API_URL` at the API when Metro cannot see it on the same machine.
+
+Promote your account in the Supabase SQL editor:
+
+```sql
+update public.users
+set role = 'admin'
+where email = 'you@example.com';
+```
+
+Sign out and back in. Profile then shows **Manage brands**. Create a brand with an email and temporary password, and share those credentials once. That person signs in and opens **My catalog** to upload products. Everyone else browses them from the Shop tab. A brand only sees and edits its own products. A regular user cannot change their role or call the admin routes.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
