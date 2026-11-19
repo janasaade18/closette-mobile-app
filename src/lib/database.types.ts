@@ -55,6 +55,16 @@ export type BrandProductRow = {
   price: number | string | null;
   category: string | null;
   image_path: string | null;
+  image_url: string | null;
+  subcategory: string | null;
+  primary_color: string | null;
+  secondary_colors: string[] | null;
+  formality: string | null;
+  gender: string | null;
+  style_tags: string[] | null;
+  pattern: string | null;
+  temperature_min_c: number | null;
+  temperature_max_c: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

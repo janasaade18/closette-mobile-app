@@ -41,6 +41,15 @@ export type CatalogProduct = {
   category: string | null;
   imagePath: string | null;
   imageUrl: string | null;
+  subcategory: string | null;
+  primaryColor: string | null;
+  secondaryColors: string[];
+  formality: string | null;
+  gender: string | null;
+  styleTags: string[];
+  pattern: string | null;
+  temperatureMinC: number | null;
+  temperatureMaxC: number | null;
   isActive: boolean;
   updatedAt: string;
 };

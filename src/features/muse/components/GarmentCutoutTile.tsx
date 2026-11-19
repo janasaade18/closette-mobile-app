@@ -1,12 +1,10 @@
 import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import {
-  garmentColorHex,
-} from '@/features/closet/services/closetApi';
+import { garmentColorHex } from '@/features/closet/services/closetApi';
 import type { ClosetGarment } from '@/features/closet/types';
 
-type GarmentKind = 'shirt' | 'pants' | 'shoe';
+type GarmentKind = 'shirt' | 'pants' | 'shoe' | 'outer' | 'accessory';
 
 type Props = {
   garment?: ClosetGarment;
@@ -21,21 +19,12 @@ type Props = {
 function roleToKind(role?: string): GarmentKind {
   if (role === 'bottom') return 'pants';
   if (role === 'footwear') return 'shoe';
+  if (role === 'outerwear') return 'outer';
+  if (role === 'accessory') return 'accessory';
   return 'shirt';
 }
 
 function Silhouette({ kind, color }: { kind: GarmentKind; color: string }) {
-  if (kind === 'shirt') {
-    return (
-      <View style={styles.shirtWrap}>
-        <View style={[styles.sleeve, styles.leftSleeve, { backgroundColor: color }]} />
-        <View style={[styles.sleeve, styles.rightSleeve, { backgroundColor: color }]} />
-        <View style={[styles.shirtBody, { backgroundColor: color }]}>
-          <View style={styles.shirtNeck} />
-        </View>
-      </View>
-    );
-  }
   if (kind === 'pants') {
     return (
       <View style={styles.pants}>
@@ -44,17 +33,39 @@ function Silhouette({ kind, color }: { kind: GarmentKind; color: string }) {
       </View>
     );
   }
+  if (kind === 'shoe') {
+    return (
+      <View style={styles.shoe}>
+        <View style={[styles.shoeTop, { backgroundColor: color }]} />
+        <View style={styles.shoeSole} />
+      </View>
+    );
+  }
+  if (kind === 'outer') {
+    return (
+      <View style={[styles.outer, { backgroundColor: color }]}>
+        <View style={styles.outerLapels} />
+      </View>
+    );
+  }
+  if (kind === 'accessory') {
+    return <View style={[styles.accessory, { backgroundColor: color }]} />;
+  }
   return (
-    <View style={styles.shoe}>
-      <View style={[styles.shoeTop, { backgroundColor: color }]} />
-      <View style={styles.shoeSole} />
+    <View style={styles.shirtWrap}>
+      <View style={[styles.sleeve, styles.leftSleeve, { backgroundColor: color }]} />
+      <View style={[styles.sleeve, styles.rightSleeve, { backgroundColor: color }]} />
+      <View style={[styles.shirtBody, { backgroundColor: color }]}>
+        <View style={styles.shirtNeck} />
+      </View>
     </View>
   );
 }
 
-/** Soft matte + padded contain so cutouts read as product tiles, not raw crops. */
+/** Soft matte + padded contain so cutouts / shop photos read as product tiles. */
 export function GarmentCutoutTile({
   garment,
+  imageUrl,
   role,
   background = Colors.light.softBlue,
   style,
@@ -62,15 +73,16 @@ export function GarmentCutoutTile({
 }: Props) {
   const color = garment ? garmentColorHex(garment) : Colors.light.primary;
   const kind = roleToKind(role);
+  const photo = imageUrl?.trim() || garment?.cutout_url || null;
 
   return (
     <View style={[styles.tile, { backgroundColor: background }, style]}>
-      <View style={[styles.matte, compact && styles.matteCompact]}>
-        {garment?.cutout_url ? (
+      <View style={[styles.matte, compact && styles.matteCompact, photo ? styles.mattePhoto : null]}>
+        {photo ? (
           <Image
-            source={{ uri: garment.cutout_url }}
+            source={{ uri: photo }}
             style={styles.cutout}
-            resizeMode="contain"
+            resizeMode={imageUrl && !garment?.cutout_url ? 'cover' : 'contain'}
           />
         ) : (
           <Silhouette kind={kind} color={color} />
@@ -101,6 +113,13 @@ const styles = StyleSheet.create({
     height: '90%',
     padding: 4,
     borderRadius: 14,
+  },
+  mattePhoto: {
+    width: '100%',
+    height: '100%',
+    padding: 0,
+    borderRadius: 25,
+    backgroundColor: 'transparent',
   },
   cutout: {
     width: '100%',
@@ -144,5 +163,24 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 4,
     backgroundColor: Colors.light.primary,
+  },
+  outer: {
+    width: 48,
+    height: 52,
+    borderRadius: 6,
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  outerLapels: {
+    width: 18,
+    height: 22,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  accessory: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
   },
 });
