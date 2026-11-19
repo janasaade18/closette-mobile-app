@@ -264,7 +264,7 @@ export async function replyToMuseChat(input: {
     marketplace: {
       enabled: true,
       include_mixed: true,
-      max_products: 16,
+      max_products: 48,
     },
     marketplaceProducts: catalog,
   });
