@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
@@ -39,6 +40,7 @@ type ShopItem = ShopIllustration & {
   mark: string;
   category: string;
   tile: string;
+  imageUrl: string | null;
 };
 
 function kindFor(category: string | null): ShopIllustration['kind'] {
@@ -60,6 +62,7 @@ function toShopItem(item: CatalogProduct, index: number): ShopItem {
     tone: look.tone,
     tile: look.tile,
     kind: kindFor(item.category),
+    imageUrl: item.imageUrl,
   };
 }
 
@@ -218,7 +221,15 @@ export default function ShopScreen() {
                 </Pressable>
               </View>
               <View style={styles.bannerShoe}>
-                <ShopProductIllustration item={featured} large />
+                {featured.imageUrl ? (
+                  <Image
+                    source={{ uri: featured.imageUrl }}
+                    style={styles.bannerPhoto}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <ShopProductIllustration item={featured} large />
+                )}
               </View>
             </View>
           ) : null}
@@ -251,7 +262,11 @@ function ProductCard({ item, onTryOn }: { item: ShopItem; onTryOn: () => void })
         <View style={styles.productBadge}>
           <BrandMark mark={item.mark} small />
         </View>
-        <ShopProductIllustration item={item} />
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.productPhoto} contentFit="cover" />
+        ) : (
+          <ShopProductIllustration item={item} />
+        )}
       </View>
       <View style={styles.productDetails}>
         <Text numberOfLines={1} style={styles.productName}>{item.name}</Text>
@@ -390,11 +405,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   featureBuyText: { color: Colors.light.onPrimary, fontFamily: Typeface.body, fontSize: 14 },
-  bannerShoe: { position: 'absolute', right: 11, top: 54 },
+  bannerShoe: {
+    position: 'absolute',
+    right: 11,
+    top: 40,
+    width: 128,
+    height: 128,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  bannerPhoto: { width: '100%', height: '100%' },
   sectionTitle: { color: Colors.light.primary, fontFamily: Typeface.display, fontSize: 19, marginTop: 18, marginBottom: 10 },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   productCard: { width: '48%', borderRadius: 26, backgroundColor: Colors.light.backgroundElement, padding: 12 },
-  productArt: { height: 103, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  productArt: {
+    height: 132,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  productPhoto: { width: '100%', height: '100%' },
   productBadge: { position: 'absolute', left: 8, top: 8, zIndex: 1 },
   productDetails: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 5, marginTop: 9 },
   productName: { flex: 1, fontFamily: Typeface.body, color: Colors.light.primary, fontSize: 15 },
