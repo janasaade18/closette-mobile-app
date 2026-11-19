@@ -23,6 +23,7 @@ export function rememberProducts(products: CatalogProduct[]) {
 
 export function brandImageUrl(path: string | null, version?: string | null) {
   if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
   const base = supabase.storage.from(BRAND_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
   if (!version) return base;
   return `${base}?v=${encodeURIComponent(version)}`;
@@ -55,6 +56,7 @@ function money(value: number | string | null) {
 }
 
 export function mapProduct(row: BrandProductRow, brandName: string): CatalogProduct {
+  const external = row.image_url?.trim() || null;
   return {
     id: row.id,
     brandId: row.brand_id,
@@ -64,7 +66,20 @@ export function mapProduct(row: BrandProductRow, brandName: string): CatalogProd
     price: money(row.price),
     category: row.category,
     imagePath: row.image_path,
-    imageUrl: brandImageUrl(row.image_path, row.updated_at),
+    imageUrl: external
+      ? brandImageUrl(external)
+      : brandImageUrl(row.image_path, row.updated_at),
+    subcategory: row.subcategory ?? null,
+    primaryColor: row.primary_color ?? null,
+    secondaryColors: row.secondary_colors ?? [],
+    formality: row.formality ?? null,
+    gender: row.gender ?? null,
+    styleTags: row.style_tags ?? [],
+    pattern: row.pattern ?? null,
+    temperatureMinC:
+      typeof row.temperature_min_c === 'number' ? row.temperature_min_c : null,
+    temperatureMaxC:
+      typeof row.temperature_max_c === 'number' ? row.temperature_max_c : null,
     isActive: row.is_active,
     updatedAt: row.updated_at,
   };
@@ -396,34 +411,108 @@ export async function updateProduct(input: {
   return product;
 }
 
-function museCategory(category: string | null) {
-  const value = category?.toLowerCase() ?? '';
+const SUBCATEGORY_TO_CATEGORY: Record<string, string> = {
+  't-shirt': 'tops',
+  shirt: 'tops',
+  polo: 'tops',
+  blouse: 'tops',
+  sweater: 'tops',
+  hoodie: 'tops',
+  jeans: 'bottoms',
+  trousers: 'bottoms',
+  chinos: 'bottoms',
+  shorts: 'bottoms',
+  skirt: 'bottoms',
+  dress: 'one-piece',
+  jumpsuit: 'one-piece',
+  romper: 'one-piece',
+  jacket: 'outerwear',
+  coat: 'outerwear',
+  blazer: 'outerwear',
+  'trench-coat': 'outerwear',
+  raincoat: 'outerwear',
+  sneakers: 'footwear',
+  boots: 'footwear',
+  sandals: 'footwear',
+  'formal-shoes': 'footwear',
+  flats: 'footwear',
+  heels: 'footwear',
+  hat: 'accessories',
+  scarf: 'accessories',
+  belt: 'accessories',
+  bag: 'accessories',
+  gloves: 'accessories',
+};
+
+function museCategory(product: CatalogProduct) {
+  const sub = (product.subcategory ?? '').toLowerCase();
+  if (sub && SUBCATEGORY_TO_CATEGORY[sub]) return SUBCATEGORY_TO_CATEGORY[sub];
+  const value = product.category?.toLowerCase() ?? '';
   if (value.includes('shoe')) return 'footwear';
-  if (value.includes('outer') || value.includes('jacket') || value.includes('coat')) return 'outerwear';
-  if (value.includes('bottom') || value.includes('pant') || value.includes('skirt')) return 'bottom';
-  if (value.includes('dress')) return 'one_piece';
-  if (value.includes('bag') || value.includes('accessor')) return 'accessory';
-  return 'top';
+  if (value.includes('outer') || value.includes('jacket') || value.includes('coat')) {
+    return 'outerwear';
+  }
+  if (
+    value.includes('bottom') ||
+    value.includes('pant') ||
+    value.includes('jean') ||
+    value.includes('skirt')
+  ) {
+    return 'bottoms';
+  }
+  if (value.includes('dress') || value.includes('jumpsuit')) return 'one-piece';
+  if (value.includes('bag') || value.includes('accessor')) return 'accessories';
+  return 'tops';
+}
+
+function museSubcategory(product: CatalogProduct) {
+  const sub = product.subcategory?.trim().toLowerCase();
+  if (sub) return sub;
+  const category = museCategory(product);
+  if (category === 'footwear') return 'sneakers';
+  if (category === 'outerwear') return 'jacket';
+  if (category === 'bottoms') return 'trousers';
+  if (category === 'one-piece') return 'dress';
+  if (category === 'accessories') return 'bag';
+  return 't-shirt';
 }
 
 export function toMuseProducts(products: CatalogProduct[]): MuseGarment[] {
-  return products.map((product) => ({
-    id: product.id,
-    name: product.name,
-    category: museCategory(product.category),
-    subcategory: product.category,
-    colors: { primary: 'unknown' },
-    formality: 'casual',
-    style_tags: product.category ? [product.category.toLowerCase()] : [],
-    price: product.price ?? undefined,
-    currency: 'USD',
-    brand: product.brandName,
-    in_stock: true,
-    source: 'marketplace' as const,
-    gender: 'unisex',
-    temperature_range_c: { min_c: -5, max_c: 35 },
-    image_url: product.imageUrl ?? undefined,
-  }));
+  return products.map((product) => {
+    const category = museCategory(product);
+    const subcategory = museSubcategory(product);
+    const tags = [
+      ...(product.styleTags ?? []),
+      ...(product.category ? [product.category.toLowerCase()] : []),
+    ];
+    const min =
+      typeof product.temperatureMinC === 'number' ? product.temperatureMinC : -5;
+    const max =
+      typeof product.temperatureMaxC === 'number' ? product.temperatureMaxC : 35;
+    return {
+      id: product.id,
+      name: product.name,
+      category,
+      subcategory,
+      colors: {
+        primary: product.primaryColor ?? 'unknown',
+        ...(product.secondaryColors?.length
+          ? { secondary: product.secondaryColors }
+          : {}),
+      },
+      pattern: product.pattern ?? undefined,
+      formality: product.formality ?? 'casual',
+      style_tags: Array.from(new Set(tags.map((tag) => tag.toLowerCase()))),
+      price: product.price ?? undefined,
+      currency: 'USD',
+      brand: product.brandName,
+      in_stock: true,
+      source: 'marketplace' as const,
+      gender: product.gender ?? 'unisex',
+      temperature_range_c: { min_c: min, max_c: max },
+      image_url: product.imageUrl ?? undefined,
+    };
+  });
 }
 
 export async function fetchMuseMarketplaceProducts() {

@@ -192,9 +192,9 @@ export default function MuseScreen() {
       const marketplace = marketplaceOn
         ? {
             enabled: true,
-            budget_max: 180,
+            budget_max: 280,
             include_mixed: true,
-            max_products: 12,
+            max_products: 36,
           }
         : undefined;
 
