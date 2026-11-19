@@ -148,30 +148,42 @@ function pickOutfit(
   const scored = [...rows].sort((a, b) => {
     let scoreA = a.score ?? 0;
     let scoreB = b.score ?? 0;
-    if (a.mixed) scoreA += 0.25;
-    if (b.mixed) scoreB += 0.25;
+    // Closet-first: never boost mixed looks over wardrobe-only.
+    if (a.mixed) scoreA -= 0.15;
+    if (b.mixed) scoreB -= 0.15;
     if (outfitUsesIds(a, avoidedIds)) scoreA -= 3;
     if (outfitUsesIds(b, avoidedIds)) scoreB -= 3;
     return scoreB - scoreA;
   });
 
   return (
+    scored.find((row) => !outfitUsesIds(row, avoidedIds) && !row.mixed) ??
     scored.find((row) => !outfitUsesIds(row, avoidedIds)) ??
-    scored.find((row) => row.mixed || (row.marketplace_items?.length ?? 0) > 0) ??
     scored[0]
   );
 }
 
-/** Show-don’t-talk: surface a weather-fit market piece when the look is cool/wet. */
+/** Buy suggestion only — prefer API complements, never force a formal suit onto jeans. */
 function pickMarketplaceMatch(
   outfit: MuseOutfit | undefined,
   weather: MuseWeather,
   products: CatalogProduct[],
+  suggestions: Array<{ product_id: string }> = [],
 ): CatalogProduct | undefined {
   const mixedId = outfit?.marketplace_items?.[0]?.product_id;
   if (mixedId) {
     const hit = products.find((product) => product.id === mixedId);
     if (hit) return hit;
+  }
+
+  for (const row of suggestions) {
+    const hit = products.find((product) => product.id === row.product_id);
+    if (!hit) continue;
+    const formal = /blazer|suit|tuxedo|formal/i.test(
+      `${hit.name} ${hit.subcategory ?? ''} ${hit.formality ?? ''}`,
+    );
+    if (formal) continue;
+    return hit;
   }
 
   const cool =
@@ -182,10 +194,15 @@ function pickMarketplaceMatch(
   if (!cool) return undefined;
   if (weather.condition === 'rain') {
     return products.find((product) =>
-      /rain|jacket|coat|outer/i.test(`${product.category ?? ''} ${product.name}`),
+      /rain|jacket|coat/i.test(`${product.category ?? ''} ${product.name}`) &&
+      !/blazer|suit|tuxedo/i.test(product.name),
     );
   }
-  return products.find((product) => /outer|jacket|coat/i.test(product.category ?? ''));
+  return products.find(
+    (product) =>
+      /outer|jacket|coat/i.test(product.category ?? '') &&
+      !/blazer|suit|tuxedo/i.test(product.name),
+  );
 }
 
 function replyCopy(context: ChatContext, mixed: boolean) {
@@ -198,7 +215,9 @@ function replyCopy(context: ChatContext, mixed: boolean) {
 
   let textReply = `Here is a ${context.occasionLabel.toLowerCase()} look`;
   if (weatherBit) textReply += ` · ${weatherBit}`;
-  textReply += mixed ? ', with a marketplace piece in the mix.' : '.';
+  textReply += mixed
+    ? ', with a shop fill for a piece your closet was missing.'
+    : '.';
   return textReply;
 }
 
@@ -270,7 +289,12 @@ export async function replyToMuseChat(input: {
   });
 
   const outfit = pickOutfit(result, avoided);
-  const product = pickMarketplaceMatch(outfit, weather, products);
+  const product = pickMarketplaceMatch(
+    outfit,
+    weather,
+    products,
+    result.marketplace_suggestions ?? [],
+  );
   const nextContext: ChatContext = {
     ...context,
     lastOutfitItemIds: outfit?.items ?? [],

@@ -477,6 +477,48 @@ function museSubcategory(product: CatalogProduct) {
   return 't-shirt';
 }
 
+const SUBCATEGORY_FORMALITY: Record<string, string> = {
+  't-shirt': 'casual',
+  hoodie: 'casual',
+  sweatshirt: 'casual',
+  'tank-top': 'casual',
+  jeans: 'casual',
+  shorts: 'casual',
+  sneakers: 'casual',
+  sandals: 'casual',
+  jacket: 'casual',
+  shirt: 'smart-casual',
+  polo: 'smart-casual',
+  blouse: 'smart-casual',
+  sweater: 'smart-casual',
+  chinos: 'smart-casual',
+  trousers: 'smart-casual',
+  flats: 'smart-casual',
+  boots: 'smart-casual',
+  coat: 'smart-casual',
+  'trench-coat': 'smart-casual',
+  dress: 'smart-casual',
+  bag: 'smart-casual',
+  blazer: 'work',
+  'formal-shoes': 'formal',
+  heels: 'formal',
+  jumpsuit: 'formal',
+};
+
+function inferProductFormality(product: CatalogProduct, subcategory: string) {
+  const name = product.name.toLowerCase();
+  // Suit / tuxedo photos must never rank as casual complements to jeans looks.
+  if (/tuxedo|suit blazer|plaid.*blazer|wool blazer/.test(name) || subcategory === 'blazer') {
+    return product.formality === 'formal' ? 'formal' : 'work';
+  }
+  const explicit = product.formality?.trim().toLowerCase();
+  if (explicit) return explicit;
+  if (SUBCATEGORY_FORMALITY[subcategory]) return SUBCATEGORY_FORMALITY[subcategory];
+  if (/suit|tuxedo|blazer/.test(name)) return 'formal';
+  if (/jean|tee|hoodie|sneaker/.test(name)) return 'casual';
+  return 'casual';
+}
+
 export function toMuseProducts(products: CatalogProduct[]): MuseGarment[] {
   return products.map((product) => {
     const category = museCategory(product);
@@ -501,7 +543,7 @@ export function toMuseProducts(products: CatalogProduct[]): MuseGarment[] {
           : {}),
       },
       pattern: product.pattern ?? undefined,
-      formality: product.formality ?? 'casual',
+      formality: inferProductFormality(product, subcategory),
       style_tags: Array.from(new Set(tags.map((tag) => tag.toLowerCase()))),
       price: product.price ?? undefined,
       currency: 'USD',

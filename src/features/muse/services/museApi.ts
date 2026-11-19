@@ -92,6 +92,8 @@ export type MuseRecommendResponse = {
   warnings?: Array<string | { code?: string; message?: string }>;
   excluded_items?: Array<{ item_id: string; rules: string[] }>;
   marketplace_excluded?: Array<{ id: string; reason: string }>;
+  /** Closet-first buy suggestions — not worn in the outfit unless mixed gap-fill. */
+  marketplace_suggestions?: MuseMarketplaceItem[];
   weather?: {
     temperature_c?: number | null;
     advice?: string | null;
@@ -255,6 +257,42 @@ const CATEGORY_ALIASES: Record<string, string> = {
   accessory: 'accessories',
 };
 
+const SUBCATEGORY_FORMALITY: Record<string, string> = {
+  't-shirt': 'casual',
+  hoodie: 'casual',
+  sweatshirt: 'casual',
+  'tank-top': 'casual',
+  jeans: 'casual',
+  shorts: 'casual',
+  sneakers: 'casual',
+  sandals: 'casual',
+  jacket: 'casual',
+  shirt: 'smart-casual',
+  polo: 'smart-casual',
+  blouse: 'smart-casual',
+  sweater: 'smart-casual',
+  chinos: 'smart-casual',
+  trousers: 'smart-casual',
+  flats: 'smart-casual',
+  boots: 'smart-casual',
+  coat: 'smart-casual',
+  'trench-coat': 'smart-casual',
+  dress: 'smart-casual',
+  blazer: 'work',
+  'formal-shoes': 'formal',
+  heels: 'formal',
+};
+
+function inferClosetFormality(garment: ClosetGarment) {
+  const sub = garment.subcategory?.trim().toLowerCase();
+  if (sub && SUBCATEGORY_FORMALITY[sub]) return SUBCATEGORY_FORMALITY[sub];
+  const category = (garment.category ?? '').toLowerCase();
+  if (category.includes('jean') || category.includes('sneaker')) return 'casual';
+  if (category.includes('blazer') || category.includes('suit')) return 'work';
+  if (category.includes('heel') || category.includes('formal')) return 'formal';
+  return undefined;
+}
+
 export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
   const rawCategory = (garment.category ?? '').toLowerCase();
   const category = CATEGORY_ALIASES[rawCategory] ?? rawCategory;
@@ -285,6 +323,9 @@ export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
   if (pattern) {
     mapped.pattern = pattern;
   }
+
+  const formality = inferClosetFormality(garment);
+  if (formality) mapped.formality = formality;
 
   return mapped;
 }

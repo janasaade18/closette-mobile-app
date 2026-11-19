@@ -761,21 +761,30 @@ export default function MuseScreen() {
                   ))}
                 </View>
 
-                {featured.marketplace_items?.length ? (
+                {(featured.marketplace_items?.length ||
+                result?.marketplace_suggestions?.length) ? (
                   <View style={styles.marketPickBlock}>
                     <Text style={styles.sectionLabel}>From the shop</Text>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={styles.marketRow}>
-                      {featured.marketplace_items.map((item) => {
+                      {(
+                        featured.marketplace_items?.length
+                          ? featured.marketplace_items
+                          : (result?.marketplace_suggestions ?? [])
+                      ).map((item) => {
                         const product = resolveMarketProduct(item);
                         if (!product?.image_url) return null;
                         return (
                           <MarketplaceProductTile
                             key={item.product_id}
                             product={product}
-                            badge="Muse pick"
+                            badge={
+                              featured.marketplace_items?.length
+                                ? 'Muse pick'
+                                : 'Buy suggestion'
+                            }
                             compact
                             onPress={() =>
                               Alert.alert(
