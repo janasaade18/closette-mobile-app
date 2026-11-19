@@ -291,7 +291,16 @@ export default function MuseScreen() {
     const marketById = new Map(
       (featured.marketplace_items ?? []).map((item) => [item.product_id, item]),
     );
-    const order = ['top', 'one_piece', 'bottom', 'outerwear', 'footwear', 'accessory'];
+    // Core look first so shoes aren't pushed off the 3-tile grid by a jacket.
+    const displayOrder = ['top', 'one_piece', 'bottom', 'footwear', 'outerwear', 'accessory'];
+    const roleById = new Map<string, string>();
+    for (const [role, id] of Object.entries(roles)) {
+      if (id) roleById.set(id, role);
+    }
+    for (const item of featured.marketplace_items ?? []) {
+      if (item.product_id && item.role) roleById.set(item.product_id, item.role);
+    }
+
     const seen = new Set<string>();
     const pieces: Array<{
       role: string;
@@ -300,31 +309,61 @@ export default function MuseScreen() {
       source: 'closet' | 'shop';
       marketplaceLabel?: string;
     }> = [];
+
     const pushPiece = (role: string, id: string) => {
       if (!id || seen.has(id)) return;
       seen.add(id);
       const market = marketById.get(id);
-      const product = market ? resolveMarketProduct(market) : null;
+      const fromCatalog = catalogProductById(id);
+      const product = market
+        ? resolveMarketProduct(market)
+        : fromCatalog
+          ? {
+              image_url: fromCatalog.imageUrl ?? '',
+              brand: fromCatalog.brandName,
+              name: fromCatalog.name,
+              price: fromCatalog.price,
+            }
+          : null;
+      const imageUrl =
+        product?.image_url ||
+        market?.image_url ||
+        fromCatalog?.imageUrl ||
+        null;
       pieces.push({
         role,
         garment: garmentById.get(id),
-        imageUrl: product?.image_url ?? market?.image_url ?? null,
-        source: market ? 'shop' : 'closet',
-        marketplaceLabel: market
-          ? `${product?.brand ?? market.brand ?? 'Shop'} ${
-              product?.name ?? market.name ?? market.subcategory ?? 'piece'
-            }${market.price != null ? ` · $${market.price}` : ''}`
-          : undefined,
+        imageUrl,
+        source: market || fromCatalog ? 'shop' : 'closet',
+        marketplaceLabel:
+          market || fromCatalog
+            ? `${product?.brand ?? market?.brand ?? fromCatalog?.brandName ?? 'Shop'} ${
+                product?.name ?? market?.name ?? fromCatalog?.name ?? market?.subcategory ?? 'piece'
+              }${
+                (product?.price ?? market?.price ?? fromCatalog?.price) != null
+                  ? ` · $${product?.price ?? market?.price ?? fromCatalog?.price}`
+                  : ''
+              }`
+            : undefined,
       });
     };
-    for (const role of order) {
+
+    for (const role of displayOrder) {
       const id = roles[role];
       if (id) pushPiece(role, id);
     }
     for (const id of featured.items ?? []) {
-      pushPiece('top', id);
+      pushPiece(roleById.get(id) ?? 'top', id);
     }
-    return pieces;
+
+    // Prefer top/bottom/shoes (or one-piece + shoes) in the 3 visible slots.
+    const preferred = pieces.filter((piece) =>
+      ['top', 'one_piece', 'bottom', 'footwear'].includes(piece.role),
+    );
+    const extras = pieces.filter(
+      (piece) => !['top', 'one_piece', 'bottom', 'footwear'].includes(piece.role),
+    );
+    return [...preferred, ...extras];
   }, [featured, garmentById]);
 
   const modelLine = rankingSummary(result?.ranking, result?.model_version);
