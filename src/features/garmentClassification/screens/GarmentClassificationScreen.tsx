@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,7 @@ import {
   PATTERN_OPTIONS,
   TEXTURE_OPTIONS,
   analyzeGarmentAppearance,
+  checkGarmentLighting,
   classifyGarment,
   displayName,
   fetchGarmentTaxonomy,
@@ -28,8 +29,11 @@ import {
   type GarmentAlternative,
   type GarmentAppearanceResult,
   type GarmentClassifyResult,
+  type GarmentLightingResult,
   type GarmentTaxonomyGroup,
 } from '@/features/garmentClassification/services/garmentClassificationApi';
+
+const LIGHTING_RED = '#D93025';
 
 interface GarmentClassificationScreenProps {
   onBack?: () => void;
@@ -78,10 +82,13 @@ export default function GarmentClassificationScreen({
     null,
   );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCheckingLight, setIsCheckingLight] = useState(false);
   const [isReadingLook, setIsReadingLook] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appearanceError, setAppearanceError] = useState<string | null>(null);
+  const [lighting, setLighting] = useState<GarmentLightingResult | null>(null);
+  const [lightingError, setLightingError] = useState<string | null>(null);
   const [result, setResult] = useState<GarmentClassifyResult | null>(null);
   const [appearance, setAppearance] = useState<GarmentAppearanceResult | null>(
     null,
@@ -96,8 +103,11 @@ export default function GarmentClassificationScreen({
   const [taxonomyGroups, setTaxonomyGroups] =
     useState<GarmentTaxonomyGroup[]>(FALLBACK_GROUPS);
 
-  const frameLayout = useMemo(() => ({ width: 0, height: 320 }), []);
+  const [frameLayout, setFrameLayout] = useState({ width: 0, height: 320 });
+  const photoToken = useRef(0);
   const appearanceGarment = appearance?.garments?.[0] ?? null;
+  const lightingOk = lighting?.ok === true;
+  const lightingBad = lighting?.ok === false;
 
   useEffect(() => {
     void fetchGarmentTaxonomy()
@@ -121,7 +131,11 @@ export default function GarmentClassificationScreen({
   const loadAppearance = async (
     uri: string,
     next: GarmentClassifyResult,
+    token: number,
   ) => {
+    if (token !== photoToken.current) {
+      return;
+    }
     if (!next.subcategory || !next.bbox) {
       return;
     }
@@ -134,20 +148,31 @@ export default function GarmentClassificationScreen({
         confidence: next.confidence,
         box: next.bbox,
       });
+      if (token !== photoToken.current) {
+        return;
+      }
       setAppearance(looks);
       if (looks.status === 'failed') {
         setAppearanceError(looks.error ?? 'Appearance could not be read.');
       }
     } catch (err) {
+      if (token !== photoToken.current) {
+        return;
+      }
       setAppearanceError(
         err instanceof Error ? err.message : 'Appearance could not be read.',
       );
     } finally {
-      setIsReadingLook(false);
+      if (token === photoToken.current) {
+        setIsReadingLook(false);
+      }
     }
   };
 
-  const analyzeUri = async (uri: string) => {
+  const analyzeUri = async (uri: string, token: number) => {
+    if (token !== photoToken.current) {
+      return;
+    }
     setIsAnalyzing(true);
     setIsReadingLook(false);
     setResult(null);
@@ -161,6 +186,9 @@ export default function GarmentClassificationScreen({
 
     try {
       const next = await classifyGarment(uri, { includeMask: false });
+      if (token !== photoToken.current) {
+        return;
+      }
       setResult(next);
       if (next.category && next.subcategory) {
         setSelected({
@@ -170,14 +198,47 @@ export default function GarmentClassificationScreen({
       }
       // Show type immediately — color/pattern can take longer on Nest.
       setIsAnalyzing(false);
-      void loadAppearance(uri, next);
+      void loadAppearance(uri, next, token);
     } catch (err) {
+      if (token !== photoToken.current) {
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Could not classify this photo.');
       setIsAnalyzing(false);
     }
   };
 
-  const usePickedAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+  const gateAndAnalyze = async (uri: string, token: number) => {
+    if (token !== photoToken.current) {
+      return;
+    }
+    setIsCheckingLight(true);
+    setLighting(null);
+    setLightingError(null);
+    try {
+      const next = await checkGarmentLighting(uri);
+      if (token !== photoToken.current) {
+        return;
+      }
+      setLighting(next);
+      setIsCheckingLight(false);
+      if (next.ok) {
+        await analyzeUri(uri, token);
+      }
+    } catch (err) {
+      if (token !== photoToken.current) {
+        return;
+      }
+      setLightingError(
+        err instanceof Error ? err.message : 'Could not check the lighting.',
+      );
+      setIsCheckingLight(false);
+    }
+  };
+
+  const handlePickedAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    const token = photoToken.current + 1;
+    photoToken.current = token;
     setImageUri(asset.uri);
     setImageSize(
       asset.width && asset.height ? { width: asset.width, height: asset.height } : null,
@@ -187,7 +248,9 @@ export default function GarmentClassificationScreen({
     setSelected(null);
     setError(null);
     setAppearanceError(null);
-    await analyzeUri(asset.uri);
+    setIsAnalyzing(false);
+    setIsReadingLook(false);
+    await gateAndAnalyze(asset.uri, token);
   };
 
   const takePhoto = async () => {
@@ -203,7 +266,7 @@ export default function GarmentClassificationScreen({
     });
 
     if (!photo.canceled) {
-      await usePickedAsset(photo.assets[0]);
+      await handlePickedAsset(photo.assets[0]);
     }
   };
 
@@ -221,7 +284,7 @@ export default function GarmentClassificationScreen({
     });
 
     if (!picked.canceled) {
-      await usePickedAsset(picked.assets[0]);
+      await handlePickedAsset(picked.assets[0]);
     }
   };
 
@@ -229,7 +292,11 @@ export default function GarmentClassificationScreen({
     if (!imageUri) {
       return;
     }
-    await analyzeUri(imageUri);
+    if (!lightingOk) {
+      await gateAndAnalyze(imageUri, photoToken.current);
+      return;
+    }
+    await analyzeUri(imageUri, photoToken.current);
   };
 
   const chooseAlternative = (alternative: GarmentAlternative) => {
@@ -257,7 +324,7 @@ export default function GarmentClassificationScreen({
   };
 
   const confirmSelection = async () => {
-    if (!result || !selected || !imageUri) {
+    if (!lightingOk || !result || !selected || !imageUri) {
       return;
     }
     if (!user?.id) {
@@ -312,8 +379,19 @@ export default function GarmentClassificationScreen({
     }
   };
 
-  const canSort = Boolean(imageUri) && !isAnalyzing;
-  const showConfirm = Boolean(result) && Boolean(selected);
+  const canSort = Boolean(imageUri) && !isAnalyzing && !isCheckingLight && !lightingBad;
+  const showConfirm = Boolean(result) && Boolean(selected) && lightingOk;
+  const sortLabel = isCheckingLight
+    ? 'Checking the light…'
+    : isAnalyzing
+      ? 'Sorting…'
+      : lightingBad
+        ? 'Retake in better light'
+        : lightingError
+          ? 'Check lighting again'
+          : imageUri
+            ? 'Sort this piece'
+            : 'Take a photo first';
 
   const primaryCta = showConfirm ? (
     <Pressable
@@ -330,7 +408,7 @@ export default function GarmentClassificationScreen({
       onPress={analyzeGarment}
       disabled={!canSort}>
       <Text style={[styles.sortButtonText, !canSort && styles.sortButtonTextDisabled]}>
-        {isAnalyzing ? 'Sorting…' : imageUri ? 'Sort this piece' : 'Take a photo first'}
+        {sortLabel}
       </Text>
     </Pressable>
   );
@@ -375,10 +453,10 @@ export default function GarmentClassificationScreen({
         </View>
 
         <View
-          style={styles.frame}
+          style={[styles.frame, lightingBad && styles.frameBadLight]}
           onLayout={(event) => {
-            frameLayout.width = event.nativeEvent.layout.width;
-            frameLayout.height = event.nativeEvent.layout.height;
+            const { width, height } = event.nativeEvent.layout;
+            setFrameLayout({ width, height });
           }}>
           {imageUri ? (
             <>
@@ -399,15 +477,35 @@ export default function GarmentClassificationScreen({
               <Text style={styles.placeholderText}>Your photo will show up here</Text>
             </View>
           )}
-          {isAnalyzing ? (
+          {isAnalyzing || isCheckingLight ? (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator color={Colors.light.onPrimary} size="large" />
-              <Text style={styles.loadingText}>Reading the garment…</Text>
+              <Text style={styles.loadingText}>
+                {isCheckingLight ? 'Checking the light…' : 'Reading the garment…'}
+              </Text>
             </View>
           ) : null}
         </View>
 
         <View style={styles.ctaInline}>{primaryCta}</View>
+
+        {lightingBad && lighting ? (
+          <View style={styles.lightCard}>
+            <Text style={styles.lightTitle}>Lighting is too poor</Text>
+            <Text style={styles.lightBody}>{lighting.guidance}</Text>
+            <Text style={styles.lightHint}>
+              Retake the photo or pick another one. Closette won&apos;t read a badly lit photo
+              because it skews the type and color.
+            </Text>
+          </View>
+        ) : null}
+
+        {lightingError ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>Could not check the lighting</Text>
+            <Text style={styles.errorBody}>{lightingError}</Text>
+          </View>
+        ) : null}
 
         {error ? (
           <View style={styles.errorCard}>
@@ -761,6 +859,37 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  frameBadLight: {
+    borderWidth: 4,
+    borderColor: LIGHTING_RED,
+  },
+  lightCard: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: LIGHTING_RED,
+    borderRadius: 22,
+    padding: 18,
+    backgroundColor: Colors.light.backgroundElement,
+  },
+  lightTitle: {
+    fontSize: 16,
+    fontFamily: Typeface.display,
+    color: LIGHTING_RED,
+    marginBottom: 4,
+  },
+  lightBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Typeface.body,
+    color: Colors.light.text,
+  },
+  lightHint: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
   },
   image: {
     width: '100%',
