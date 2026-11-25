@@ -183,6 +183,14 @@ export type GarmentAppearanceResult = {
   message?: string;
 };
 
+export type GarmentLightingResult = {
+  ok: boolean;
+  score: number;
+  issues: string[];
+  guidance: string;
+  metrics?: Record<string, number>;
+};
+
 function classifyUrl(includeMask: boolean) {
   if (USE_NEST) {
     const query = includeMask ? '' : '?include_mask=false';
@@ -452,6 +460,96 @@ async function appearanceWithFetch(
     );
   }
   return unwrapAppearancePayload(json);
+}
+
+function lightingUrl() {
+  return `${nestBaseUrl()}/garments/lighting-check`;
+}
+
+function lightingUnreachable() {
+  return `Cannot reach the Closette API at ${nestBaseUrl()} to check lighting. Keep Nest running on :3000.`;
+}
+
+function unwrapLightingPayload(json: unknown): GarmentLightingResult {
+  const record =
+    json && typeof json === 'object'
+      ? (json as { data?: unknown; message?: string; error?: string })
+      : null;
+  const payload =
+    record?.data && typeof record.data === 'object' ? record.data : json;
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as { ok?: unknown }).ok !== 'boolean'
+  ) {
+    throw new Error('Lighting check returned an unexpected response.');
+  }
+  return payload as GarmentLightingResult;
+}
+
+function lightingHttpError(json: { message?: unknown; error?: unknown }, status: number) {
+  const message = typeof json.message === 'string' ? json.message : null;
+  const error = typeof json.error === 'string' ? json.error : null;
+  return new Error(message ?? error ?? `Request failed: ${status}`);
+}
+
+async function lightingWithUploadAsync(uri: string) {
+  const fileUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+  const result = await FileSystem.uploadAsync(lightingUrl(), fileUri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType: mimeForName(guessName(uri)),
+  }).catch(() => {
+    throw new Error(lightingUnreachable());
+  });
+  let json: { message?: unknown; error?: unknown };
+  try {
+    json = JSON.parse(result.body) as { message?: unknown; error?: unknown };
+  } catch {
+    throw new Error(lightingUnreachable());
+  }
+  if (result.status < 200 || result.status >= 300) {
+    throw lightingHttpError(json, result.status);
+  }
+  return unwrapLightingPayload(json);
+}
+
+async function lightingWithFetch(uri: string) {
+  const name = guessName(uri);
+  const form = new FormData();
+  let response: Response;
+  try {
+    const blob = await (await fetch(uri)).blob();
+    form.append('file', blob, name);
+    response = await fetch(lightingUrl(), {
+      method: 'POST',
+      body: form,
+    });
+  } catch {
+    throw new Error(lightingUnreachable());
+  }
+  let json: { message?: unknown; error?: unknown };
+  try {
+    json = (await response.json()) as { message?: unknown; error?: unknown };
+  } catch {
+    throw new Error(lightingUnreachable());
+  }
+  if (!response.ok) {
+    throw lightingHttpError(json, response.status);
+  }
+  return unwrapLightingPayload(json);
+}
+
+export async function checkGarmentLighting(uri: string): Promise<GarmentLightingResult> {
+  if (Platform.OS === 'web') {
+    return lightingWithFetch(uri);
+  }
+  try {
+    return await lightingWithUploadAsync(uri);
+  } catch {
+    return lightingWithFetch(uri);
+  }
 }
 
 export async function analyzeGarmentAppearance(
