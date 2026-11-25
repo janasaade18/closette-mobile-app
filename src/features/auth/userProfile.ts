@@ -71,6 +71,26 @@ export async function saveOnboardingProfile(
   return data as ClosetteUserProfile;
 }
 
+/** Persist home city from Muse chat (set_home_location) onto the user profile. */
+export async function saveUserHomeLocation(userId: string, location: string) {
+  const cleaned = location.trim();
+  if (!cleaned) {
+    throw new Error('Location is required');
+  }
+  const { data, error } = await supabase
+    .from('users')
+    .update({
+      location: cleaned,
+      weather_aware: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as ClosetteUserProfile;
+}
+
 export function authErrorMessage(error: unknown) {
   if (!error || typeof error !== 'object') {
     return 'Something went wrong. Try again.';

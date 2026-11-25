@@ -38,19 +38,24 @@ import {
   type MuseTravelPackResponse,
   type MuseWeather,
 } from '@/features/muse/services/museApi';
+import { PlacesManagerModal } from '@/features/muse/components/PlacesManagerModal';
+import { resolveAutoPlace } from '@/features/muse/services/autoLocation';
+import {
+  resolveLiveForecast,
+  resolveLiveWeather,
+} from '@/features/muse/services/liveWeather';
+import {
+  ensureDetectedPlace,
+  getActivePlace,
+  placeChipLabel,
+  upsertUserPlace,
+  type UserPlace,
+} from '@/features/muse/services/userPlaces';
 
 const OCCASIONS: { label: string; value: MuseOccasion }[] = [
   { label: 'Casual', value: 'casual' },
   { label: 'Uni', value: 'smart-casual' },
-  { label: 'Work', value: 'work' },
   { label: 'Formal', value: 'formal' },
-];
-
-const WEATHER_PRESETS: { label: string; weather: MuseWeather }[] = [
-  { label: '18° rain', weather: { temperature_c: 18, condition: 'rain' } },
-  { label: '22° clear', weather: { temperature_c: 22, condition: 'clear' } },
-  { label: '8° cold', weather: { temperature_c: 8, condition: 'cold' } },
-  { label: '28° hot', weather: { temperature_c: 28, condition: 'hot' } },
 ];
 
 function scoreLabel(score: number) {
@@ -65,39 +70,41 @@ function outfitTitle(outfit: MuseOutfit, occasionLabel: string) {
   return `${occasionLabel} look`;
 }
 
-function buildWeekDays(occasion: MuseOccasion, weather: MuseWeather) {
-  const baseTemp = weather.temperature_c ?? 18;
+function buildWeekDays(
+  occasion: MuseOccasion,
+  forecast: Array<{ date: string; weather: MuseWeather }>,
+  fallbackWeather: MuseWeather,
+) {
   const occasions: MuseOccasion[] = [
     occasion,
-    occasion === 'formal' ? 'smart-casual' : 'work',
+    occasion === 'formal' ? 'smart-casual' : 'casual',
     'casual',
     'smart-casual',
-    'work',
     'casual',
+    'smart-casual',
     occasion === 'formal' ? 'formal' : 'smart-casual',
   ];
-  return occasions.map((dayOccasion, index) => ({
-    date: `day-${index + 1}`,
-    label: `Day ${index + 1}`,
-    occasion: dayOccasion,
-    weather: {
-      temperature_c: Math.max(4, baseTemp + ((index % 3) - 1) * 3),
-      condition: index === 1 || index === 4 ? 'rain' : weather.condition,
-    },
-  }));
+  return occasions.map((dayOccasion, index) => {
+    const day = forecast[index];
+    return {
+      date: day?.date ?? `day-${index + 1}`,
+      label: day?.date ? day.date : `Day ${index + 1}`,
+      occasion: dayOccasion,
+      weather: day?.weather ?? fallbackWeather,
+    };
+  });
 }
 
-function weatherChipLabel(weather: MuseWeather) {
-  const match = WEATHER_PRESETS.find(
-    (preset) =>
-      preset.weather.temperature_c === weather.temperature_c &&
-      preset.weather.condition === weather.condition,
-  );
-  if (match) return match.label;
+function weatherChipLabel(weather: MuseWeather, place?: string | null) {
   const temp =
     typeof weather.temperature_c === 'number' ? `${weather.temperature_c}°` : '';
   const condition = weather.condition ? ` ${weather.condition}` : '';
-  return `${temp}${condition}`.trim() || 'Weather';
+  const base = `${temp}${condition}`.trim();
+  if (place) {
+    const short = place.split(',')[0]?.trim() || place;
+    return base ? `${base} · ${short}` : short;
+  }
+  return base || 'Live weather';
 }
 
 function resolveMarketProduct(item: MuseMarketplaceItem) {
@@ -141,7 +148,10 @@ export default function MuseScreen() {
   const [travel, setTravel] = useState<MuseTravelPackResponse | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
   const [occasion, setOccasion] = useState<MuseOccasion>('smart-casual');
-  const [weather, setWeather] = useState<MuseWeather>(WEATHER_PRESETS[0].weather);
+  const [weather, setWeather] = useState<MuseWeather>({});
+  const [weatherPlace, setWeatherPlace] = useState<string | null>(null);
+  const [activePlace, setActivePlaceState] = useState<UserPlace | null>(null);
+  const [placesManagerOpen, setPlacesManagerOpen] = useState(false);
   const [mode, setMode] = useState<MuseMode>('outfits');
   const [marketplaceOn, setMarketplaceOn] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -172,6 +182,61 @@ export default function MuseScreen() {
 
     try {
       setError(null);
+      // Live weather via saved places (coords) or auto-detect — never invent.
+      let activeWeather: MuseWeather = {};
+      let forecastDays: Array<{ date: string; weather: MuseWeather }> = [];
+      let placeRow =
+        (await getActivePlace(user.id).catch(() => null)) ?? null;
+
+      if (!placeRow) {
+        const auto = await resolveAutoPlace(profile?.location).catch(() => null);
+        if (auto && auto.latitude && auto.longitude) {
+          placeRow = await ensureDetectedPlace({
+            userId: user.id,
+            label: auto.label,
+            latitude: auto.latitude,
+            longitude: auto.longitude,
+          }).catch(() => null);
+        } else if (auto?.label) {
+          placeRow = await upsertUserPlace({
+            userId: user.id,
+            name: auto.label,
+            makeActive: true,
+          }).catch(() => null);
+        }
+      }
+
+      setActivePlaceState(placeRow);
+      const placeName = placeRow?.query_name || placeRow?.label || profile?.location?.trim() || '';
+      const coords =
+        placeRow?.latitude != null && placeRow?.longitude != null
+          ? {
+              latitude: placeRow.latitude,
+              longitude: placeRow.longitude,
+              label: placeRow.label,
+            }
+          : null;
+
+      if (placeName || coords) {
+        const [live, forecast] = await Promise.all([
+          resolveLiveWeather(placeName, coords),
+          resolveLiveForecast(placeName, 7, coords),
+        ]);
+        if (live.source === 'live' && live.weather) {
+          activeWeather = live.weather;
+          setWeather(live.weather);
+          setWeatherPlace(placeRow ? placeChipLabel(placeRow) : live.label);
+        } else {
+          setWeather({});
+          setWeatherPlace(placeRow ? placeChipLabel(placeRow) : placeName || null);
+          setError(live.source === 'unavailable' ? live.reason : null);
+        }
+        forecastDays = forecast.days;
+      } else {
+        setWeatherPlace(null);
+        setWeather({});
+      }
+
       const rows = await fetchClosetGarments(user.id);
       setGarments(rows);
 
@@ -202,8 +267,10 @@ export default function MuseScreen() {
         const packed = await packTravel({
           userId: user.id,
           wardrobe: rows,
-          destination: { name: 'This week' },
-          days: buildWeekDays(occasion, weather),
+          destination: {
+            name: weatherPlace ?? profile?.location ?? 'This week',
+          },
+          days: buildWeekDays(occasion, forecastDays, activeWeather),
           luggage: { max_items: 18, prefer_rewear: true, max_core_reuses: 2 },
           marketplace,
           marketplaceProducts: marketplaceOn
@@ -219,7 +286,7 @@ export default function MuseScreen() {
           userId: user.id,
           wardrobe: rows,
           occasion,
-          weather,
+          weather: activeWeather,
           limit: 6,
           profile,
           marketplace,
@@ -248,6 +315,8 @@ export default function MuseScreen() {
     occasion,
     weather.temperature_c,
     weather.condition,
+    weatherPlace,
+    profile?.location,
     profile?.gender,
     profile?.preferred_styles?.join('|'),
     profile?.preferred_colors?.join('|'),
@@ -383,17 +452,17 @@ export default function MuseScreen() {
   };
 
   const pickWeather = () => {
-    Alert.alert(
-      'Weather',
-      'Pick a weather context for Muse.',
-      [
-        ...WEATHER_PRESETS.map((entry) => ({
-          text: entry.label,
-          onPress: () => setWeather(entry.weather),
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-    );
+    if (!user?.id) {
+      Alert.alert('Sign in', 'Sign in to manage your places.');
+      return;
+    }
+    setPlacesManagerOpen(true);
+  };
+
+  const applyActivePlace = (_place: UserPlace) => {
+    setPlacesManagerOpen(false);
+    setRefreshing(true);
+    void loadRecommendations();
   };
 
   const describePiece = (piece?: {
@@ -612,18 +681,12 @@ export default function MuseScreen() {
                 tintColor={Colors.light.onPrimary}
                 size={14}
               />
-              <Text style={styles.darkChipText}>{weatherChipLabel(weather)}</Text>
+              <Text style={styles.darkChipText}>
+                {weatherChipLabel(weather, weatherPlace)}
+              </Text>
             </Pressable>
             <Pressable style={styles.darkChip} onPress={pickOccasion}>
               <Text style={styles.darkChipText}>{occasionLabel}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.editChip}
-              onPress={() => {
-                setRefreshing(true);
-                void loadRecommendations();
-              }}>
-              <Text style={styles.editText}>Refresh</Text>
             </Pressable>
           </View>
 
@@ -906,6 +969,14 @@ export default function MuseScreen() {
           ) : null}
         </ScrollView>
       </View>
+      {user?.id ? (
+        <PlacesManagerModal
+          visible={placesManagerOpen}
+          userId={user.id}
+          onClose={() => setPlacesManagerOpen(false)}
+          onActivePlace={applyActivePlace}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

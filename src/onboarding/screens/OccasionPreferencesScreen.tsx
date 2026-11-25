@@ -24,7 +24,7 @@ export default function OccasionPreferencesScreen({
     preferences.commonOccasions,
   );
   const [weatherAware, setWeatherAware] = useState(
-    preferences.weatherAware ?? false,
+    preferences.weatherAware ?? true,
   );
 
   const toggleOccasion = (occasion: string) => {

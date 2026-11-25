@@ -10,7 +10,8 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSCameraUsageDescription": "Closette needs access to your camera for the Miroir feature."
+        "NSCameraUsageDescription": "Closette needs access to your camera for the Miroir feature.",
+        "NSLocationWhenInUseUsageDescription": "Closette uses your location to dress you for local weather."
       }
     },
     "android": {
@@ -23,7 +24,9 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.closettemobileapp",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -41,7 +44,13 @@
         }
       ],
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Closette uses your location to dress you for local weather."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

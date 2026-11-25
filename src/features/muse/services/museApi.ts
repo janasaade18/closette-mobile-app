@@ -1,7 +1,6 @@
-import Constants from 'expo-constants';
-
 import type { ClosetteUserProfile } from '@/features/auth/types';
 import type { ClosetGarment } from '@/features/closet/types';
+import { museDevBaseUrl } from '@/lib/devHost';
 
 export type MuseOccasion = 'casual' | 'smart-casual' | 'work' | 'formal' | string;
 
@@ -176,37 +175,8 @@ export type MuseTravelPackResponse = {
   error?: string;
 };
 
-function resolveDevHost(): string {
-  const explicit = process.env.EXPO_PUBLIC_DEV_HOST?.trim();
-  if (explicit) {
-    return explicit.replace(/^https?:\/\//, '').split(':')[0];
-  }
-
-  const candidates = [
-    Constants.expoConfig?.hostUri,
-    Constants.manifest2?.extra?.expoGo?.debuggerHost,
-    (Constants as { manifest?: { debuggerHost?: string } }).manifest
-      ?.debuggerHost,
-    Constants.linkingUri,
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const match = String(candidate).match(/(\d{1,3}(?:\.\d{1,3}){3})/);
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  return '127.0.0.1';
-}
-
 export function museBaseUrl() {
-  const override = process.env.EXPO_PUBLIC_MUSE_URL?.trim();
-  if (override) {
-    return override.replace(/\/$/, '');
-  }
-  return `http://${resolveDevHost()}:8787`;
+  return museDevBaseUrl();
 }
 
 const MUSE_CATEGORIES = new Set([
@@ -296,11 +266,16 @@ function inferClosetFormality(garment: ClosetGarment) {
 export function closetGarmentToMuse(garment: ClosetGarment): MuseGarment {
   const rawCategory = (garment.category ?? '').toLowerCase();
   const category = CATEGORY_ALIASES[rawCategory] ?? rawCategory;
+  const colorName = garment.color?.primary?.name?.trim().toLowerCase();
+  const kind = (garment.subcategory ?? garment.category ?? 'piece')
+    .replace(/[_-]+/g, ' ')
+    .trim();
   const mapped: MuseGarment = {
     id: garment.id,
     subcategory: garment.subcategory,
     availability: 'clean',
     source: 'wardrobe',
+    name: `${colorName ? `${colorName} ` : ''}${kind}`.trim(),
   };
 
   if (MUSE_CATEGORIES.has(category)) {
