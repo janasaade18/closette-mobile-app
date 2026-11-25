@@ -393,6 +393,9 @@ export default function GarmentClassificationScreen({
             ? 'Sort this piece'
             : 'Take a photo first';
 
+  // When lighting fails, the button becomes a shortcut to retake the photo.
+  const canPressSort = canSort || lightingBad;
+
   const primaryCta = showConfirm ? (
     <Pressable
       style={[styles.sortButton, isSaving && styles.sortButtonDisabled]}
@@ -404,10 +407,10 @@ export default function GarmentClassificationScreen({
     </Pressable>
   ) : (
     <Pressable
-      style={[styles.sortButton, !canSort && styles.sortButtonDisabled]}
-      onPress={analyzeGarment}
-      disabled={!canSort}>
-      <Text style={[styles.sortButtonText, !canSort && styles.sortButtonTextDisabled]}>
+      style={[styles.sortButton, !canPressSort && styles.sortButtonDisabled]}
+      onPress={lightingBad ? takePhoto : analyzeGarment}
+      disabled={!canPressSort}>
+      <Text style={[styles.sortButtonText, !canPressSort && styles.sortButtonTextDisabled]}>
         {sortLabel}
       </Text>
     </Pressable>
