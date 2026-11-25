@@ -1,42 +1,13 @@
-import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
+import { nestDevBaseUrl } from '@/lib/devHost';
 import { supabase } from '@/lib/supabase';
 
 import type { ClosetGarment } from '../types';
 
-function resolveDevHost(): string {
-  const explicit = process.env.EXPO_PUBLIC_DEV_HOST?.trim();
-  if (explicit) {
-    return explicit.replace(/^https?:\/\//, '').split(':')[0];
-  }
-
-  const candidates = [
-    Constants.expoConfig?.hostUri,
-    Constants.manifest2?.extra?.expoGo?.debuggerHost,
-    (Constants as { manifest?: { debuggerHost?: string } }).manifest
-      ?.debuggerHost,
-    Constants.linkingUri,
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const match = String(candidate).match(/(\d{1,3}(?:\.\d{1,3}){3})/);
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  return '127.0.0.1';
-}
-
 function nestBaseUrl() {
-  const override = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (override) {
-    return override.replace(/\/$/, '');
-  }
-  return `http://${resolveDevHost()}:3000`;
+  return nestDevBaseUrl();
 }
 
 function guessName(uri: string) {
@@ -158,9 +129,13 @@ export async function saveGarmentToCloset(uri: string, profileId: string) {
     } catch {
       const message =
         uploadError instanceof Error ? uploadError.message : String(uploadError);
-      if (/Network request failed|Failed to fetch|ECONNREFUSED/i.test(message)) {
+      if (
+        /Network request failed|Failed to fetch|ECONNREFUSED|timed out|timeout|ECONNRESET|reset/i.test(
+          message,
+        )
+      ) {
         throw new Error(
-          `Cannot reach the Closette API at ${nestBaseUrl()}. Keep Nest running on :3000 and stay on the same Wi‑Fi.`,
+          `Save timed out talking to ${nestBaseUrl()}. Keep Nest (:3000) and the garment classifier (:8090) running on the same Wi‑Fi, then try again.`,
         );
       }
       throw uploadError instanceof Error ? uploadError : new Error(message);

@@ -1,51 +1,22 @@
-import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
+import { nestDevBaseUrl, resolveDevHost } from '@/lib/devHost';
+
 const USE_NEST = process.env.EXPO_PUBLIC_GARMENT_VIA_NEST === '1';
 
-/**
- * Same machine the phone already used to load Metro. That IP updates
- * automatically whenever you open Expo Go on a new Wi‑Fi — no .env edits.
- */
-function resolveDevHost(): string {
-  const explicit = process.env.EXPO_PUBLIC_DEV_HOST?.trim();
-  if (explicit) {
-    return explicit.replace(/^https?:\/\//, '').split(':')[0];
-  }
-
-  const candidates = [
-    Constants.expoConfig?.hostUri,
-    Constants.manifest2?.extra?.expoGo?.debuggerHost,
-    // Legacy manifest (Expo Go)
-    (Constants as { manifest?: { debuggerHost?: string } }).manifest
-      ?.debuggerHost,
-    Constants.linkingUri,
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const match = String(candidate).match(/(\d{1,3}(?:\.\d{1,3}){3})/);
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  // Android emulator → host loopback. Physical USB + adb reverse → 127.0.0.1.
-  return '127.0.0.1';
-}
-
 function nestBaseUrl() {
-  const override = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (override) {
-    return override.replace(/\/$/, '');
-  }
-  return `http://${resolveDevHost()}:3000`;
+  return nestDevBaseUrl();
 }
 
 function mlBaseUrl() {
   const override = process.env.EXPO_PUBLIC_GARMENT_API_URL?.trim();
   if (override) {
+    // Prefer live Expo host so garment ML tracks Wi‑Fi IP changes too.
+    const host = resolveDevHost();
+    if (host !== '127.0.0.1' && host !== '10.0.2.2') {
+      return `http://${host}:8090`;
+    }
     return override.replace(/\/$/, '');
   }
   return `http://${resolveDevHost()}:8090`;

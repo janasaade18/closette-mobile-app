@@ -6,6 +6,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +19,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, PageGutter, Typeface } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
-import { authErrorMessage } from '@/features/auth/userProfile';
+import {
+  authErrorMessage,
+  saveUserHomeLocation,
+} from '@/features/auth/userProfile';
 import {
   fetchClosetGarments,
   garmentDisplayName,
@@ -32,13 +36,35 @@ import {
   type ChatContext,
   type ChatOutfitPayload,
 } from '@/features/muse/services/museChat';
+import {
+  appendMuseMessage,
+  createMuseThread,
+  deleteMuseThread,
+  listMuseThreads,
+  loadMuseMemory,
+  loadMuseMessages,
+  saveMuseMemory,
+  titleFromMessage,
+  touchMuseThread,
+  type MuseChatThread,
+  type MuseUserMemory,
+} from '@/features/muse/services/museChatStore';
+import { PlacesManagerModal } from '@/features/muse/components/PlacesManagerModal';
+import { resolveAutoPlace } from '@/features/muse/services/autoLocation';
 import { resolveLiveWeather } from '@/features/muse/services/liveWeather';
+import {
+  ensureDetectedPlace,
+  getActivePlace,
+  placeChipLabel,
+  upsertUserPlace,
+  type UserPlace,
+} from '@/features/muse/services/userPlaces';
 import { sendOutfitFeedback } from '@/features/muse/services/museApi';
 import { catalogProductById } from '@/features/catalog/api';
 import { formatPrice, type CatalogProduct } from '@/features/catalog/types';
 
 type Message = {
-  id: number;
+  id: string | number;
   from: 'user' | 'muse';
   text: string;
   outfit?: ChatOutfitPayload;
@@ -48,38 +74,34 @@ type Message = {
 const OCCASIONS: { label: string; value: ChatContext['occasion'] }[] = [
   { label: 'Casual', value: 'casual' },
   { label: 'Smart casual', value: 'smart-casual' },
-  { label: 'Work', value: 'work' },
   { label: 'Formal', value: 'formal' },
 ];
 
-const WEATHER_PRESETS: Array<{ label: string; weather: ChatContext['weather'] }> = [
-  { label: '18° rain', weather: { temperature_c: 18, condition: 'rain' } },
-  { label: '22° clear', weather: { temperature_c: 22, condition: 'clear' } },
-  { label: '8° cold', weather: { temperature_c: 8, condition: 'cold' } },
-  { label: '28° hot', weather: { temperature_c: 28, condition: 'hot' } },
-];
+const SCHEDULES = ['Anytime', 'Tonight', 'Sat · evening', 'Sun · daytime'];
 
-const SCHEDULES = ['Anytime', 'Tonight', 'Sat · evening', 'Sun · daytime', 'Work week'];
-
-function weatherLabel(weather: ChatContext['weather']) {
-  const match = WEATHER_PRESETS.find(
-    (preset) =>
-      preset.weather.temperature_c === weather.temperature_c &&
-      preset.weather.condition === weather.condition,
-  );
-  if (match) return match.label;
+function weatherLabel(
+  weather: ChatContext['weather'],
+  place?: string | null,
+) {
   const temp =
     typeof weather.temperature_c === 'number' ? `${weather.temperature_c}°` : '';
   const condition = weather.condition ? ` ${weather.condition}` : '';
-  return `${temp}${condition}`.trim() || 'Weather';
+  const base = `${temp}${condition}`.trim();
+  if (place) {
+    const short = place.split(',')[0]?.trim() || place;
+    return base ? `${base} · ${short}` : short;
+  }
+  return base || 'Live weather';
 }
 
 export default function MuseChatScreen() {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, setProfile, refreshProfile } = useAuth();
   const listRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const nextMessageId = useRef(2);
   const autoStarted = useRef(false);
+  const threadIdRef = useRef<string | null>(null);
+  const memoryRef = useRef<MuseUserMemory>({ summary: '', facts: [] });
 
   const [wardrobe, setWardrobe] = useState<ClosetGarment[]>([]);
   const [context, setContext] = useState<ChatContext>(DEFAULT_CHAT_CONTEXT);
@@ -90,6 +112,12 @@ export default function MuseChatScreen() {
       text: 'Hi — I’m building a first look from your closet. You can also tap a suggestion or type anything.',
     },
   ]);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<MuseChatThread[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [memory, setMemory] = useState<MuseUserMemory>({ summary: '', facts: [] });
+  const [activePlace, setActivePlaceState] = useState<UserPlace | null>(null);
+  const [placesManagerOpen, setPlacesManagerOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [loadingCloset, setLoadingCloset] = useState(true);
@@ -108,6 +136,22 @@ export default function MuseChatScreen() {
   const busyRef = useRef(false);
   const contextRef = useRef(context);
   contextRef.current = context;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  threadIdRef.current = threadId;
+  memoryRef.current = memory;
+
+  const ensureThread = useCallback(async () => {
+    if (!user?.id) return null;
+    if (threadIdRef.current) return threadIdRef.current;
+    const created = await createMuseThread(user.id, {
+      title: 'Muse chat',
+      context: contextRef.current,
+    });
+    threadIdRef.current = created.id;
+    setThreadId(created.id);
+    return created.id;
+  }, [user?.id]);
 
   const askMuse = useCallback(
     async (
@@ -136,14 +180,70 @@ export default function MuseChatScreen() {
       busyRef.current = true;
       setBusy(true);
       try {
+        const activeThreadId = await ensureThread();
+        if (activeThreadId && !options?.silentUser) {
+          void appendMuseMessage({
+            threadId: activeThreadId,
+            userId: user.id,
+            role: 'user',
+            content: prompt,
+          }).catch(() => undefined);
+          void touchMuseThread(activeThreadId, {
+            title: titleFromMessage(prompt),
+            context: contextRef.current,
+          }).catch(() => undefined);
+        }
+
+        const history = messagesRef.current
+          .filter((entry) => entry.text.trim())
+          .slice(-20)
+          .map((entry) => ({
+            role: entry.from === 'user' ? ('user' as const) : ('assistant' as const),
+            content: entry.text,
+          }));
         const reply = await replyToMuseChat({
           text: prompt,
           userId: user.id,
           wardrobe: closet,
           profile,
           context: contextRef.current,
+          history,
+          memorySummary: memoryRef.current.summary,
+          memoryFacts: memoryRef.current.facts,
         });
         setContext(reply.context);
+        contextRef.current = reply.context;
+        if (reply.memory) {
+          setMemory(reply.memory);
+          memoryRef.current = reply.memory;
+          void saveMuseMemory(user.id, reply.memory).catch(() => undefined);
+        }
+        if (reply.homeLocation) {
+          const city = reply.homeLocation;
+          setContext((current) => {
+            const next = {
+              ...current,
+              ...reply.context,
+              location: city,
+            };
+            contextRef.current = next;
+            return next;
+          });
+          void upsertUserPlace({
+            userId: user.id,
+            name: city,
+            makeActive: true,
+          })
+            .then((place) => {
+              setActivePlaceState(place);
+              void refreshProfile();
+            })
+            .catch(() => {
+              void saveUserHomeLocation(user.id, city)
+                .then((nextProfile) => setProfile(nextProfile))
+                .catch(() => refreshProfile());
+            });
+        }
         append([
           {
             id: nextMessageId.current++,
@@ -153,6 +253,21 @@ export default function MuseChatScreen() {
             product: reply.product,
           },
         ]);
+        if (activeThreadId) {
+          void appendMuseMessage({
+            threadId: activeThreadId,
+            userId: user.id,
+            role: 'muse',
+            content: reply.text,
+            payload: {
+              outfit: reply.outfit,
+              product: reply.product,
+            },
+          }).catch(() => undefined);
+          void touchMuseThread(activeThreadId, {
+            context: reply.context,
+          }).catch(() => undefined);
+        }
       } catch (error) {
         append([
           {
@@ -166,7 +281,7 @@ export default function MuseChatScreen() {
         setBusy(false);
       }
     },
-    [append, profile, user?.id, wardrobe],
+    [append, ensureThread, profile, refreshProfile, setProfile, user?.id, wardrobe],
   );
 
   useEffect(() => {
@@ -178,6 +293,8 @@ export default function MuseChatScreen() {
         if (cancelled) return;
         setWardrobe([]);
         setLoadingCloset(false);
+        setThreadId(null);
+        threadIdRef.current = null;
         setMessages([
           {
             id: 1,
@@ -190,35 +307,165 @@ export default function MuseChatScreen() {
 
       setLoadingCloset(true);
       try {
-        const [rows, live] = await Promise.all([
+        // Active place (home/work/uni) with coords → live weather.
+        let placeRow =
+          (await getActivePlace(user.id).catch(() => null)) ?? null;
+        let autoSource: 'profile' | 'device' | 'ip' | 'saved' | null = placeRow
+          ? 'saved'
+          : null;
+
+        if (!placeRow) {
+          const auto = await resolveAutoPlace(profile?.location).catch(
+            () => null,
+          );
+          if (auto?.label && auto.latitude && auto.longitude) {
+            placeRow = await ensureDetectedPlace({
+              userId: user.id,
+              label: auto.label,
+              latitude: auto.latitude,
+              longitude: auto.longitude,
+            }).catch(() => null);
+            autoSource = auto.source;
+          } else if (auto?.label) {
+            placeRow = await upsertUserPlace({
+              userId: user.id,
+              name: auto.label,
+              makeActive: true,
+            }).catch(() => null);
+            autoSource = auto.source;
+          }
+        }
+
+        if (cancelled) return;
+        setActivePlaceState(placeRow);
+
+        const location =
+          placeRow?.query_name ||
+          placeRow?.label ||
+          profile?.location?.trim() ||
+          null;
+        const coords =
+          placeRow?.latitude != null && placeRow?.longitude != null
+            ? {
+                latitude: placeRow.latitude,
+                longitude: placeRow.longitude,
+                label: placeRow.label,
+              }
+            : null;
+
+        const [rows, live, storedMemory, existingThreads] = await Promise.all([
           fetchClosetGarments(user.id),
-          profile?.weather_aware === false
-            ? Promise.resolve(null)
-            : resolveLiveWeather(profile?.location),
+          location || coords
+            ? resolveLiveWeather(location, coords)
+            : Promise.resolve(null),
+          loadMuseMemory(user.id).catch(() => ({
+            summary: '',
+            facts: [] as string[],
+          })),
+          listMuseThreads(user.id).catch(() => [] as MuseChatThread[]),
         ]);
         if (cancelled) return;
-        if (live) {
-          const next = {
-            ...DEFAULT_CHAT_CONTEXT,
-            weather: live.weather,
+
+        setMemory(storedMemory);
+        memoryRef.current = storedMemory;
+        setThreads(existingThreads);
+
+        const weatherBase = {
+          ...DEFAULT_CHAT_CONTEXT,
+          weather:
+            live?.source === 'live' && live.weather ? live.weather : {},
+          location:
+            (placeRow ? placeChipLabel(placeRow) : undefined) ??
+            (live?.source === 'live' ? live.label : undefined) ??
+            location ??
+            undefined,
+          locationQuery: placeRow?.query_name || location || undefined,
+          latitude:
+            placeRow?.latitude ??
+            (live?.source === 'live' ? live.latitude : undefined),
+          longitude:
+            placeRow?.longitude ??
+            (live?.source === 'live' ? live.longitude : undefined),
+        };
+
+        const latest = existingThreads[0] ?? null;
+        if (latest) {
+          const stored = await loadMuseMessages(latest.id).catch(() => []);
+          if (cancelled) return;
+          // Always prefer fresh live weather over a stale saved "rain" chip.
+          const restoredContext = {
+            ...weatherBase,
+            ...(latest.context as Partial<ChatContext>),
+            weather: weatherBase.weather,
+            location: weatherBase.location,
           };
-          setContext(next);
-          contextRef.current = next;
+          setContext(restoredContext);
+          contextRef.current = restoredContext;
+          setThreadId(latest.id);
+          threadIdRef.current = latest.id;
+          setWardrobe(rows);
+
+          if (stored.length > 0) {
+            nextMessageId.current = stored.length + 2;
+            setMessages(
+              stored.map((row, index) => ({
+                id: row.id || index + 1,
+                from: row.role === 'user' ? ('user' as const) : ('muse' as const),
+                text: row.content,
+                outfit: row.payload?.outfit,
+                product: row.payload?.product,
+              })),
+            );
+            autoStarted.current = true;
+          } else {
+            const placeName = live?.source === 'live' ? live.label : location;
+            const weatherHint = !location
+              ? ' Allow location (or set your city in profile) so I can use live weather.'
+              : live?.source === 'live'
+                ? ` Live weather near ${placeName}${autoSource && autoSource !== 'profile' ? ' (detected automatically)' : ''}.`
+                : live?.source === 'unavailable'
+                  ? ` ${live.reason}`
+                  : '';
+            setMessages([
+              {
+                id: 1,
+                from: 'muse',
+                text:
+                  rows.length === 0
+                    ? 'Your closet is empty. Add a few pieces, then I will style you from what you own.'
+                    : `Welcome back — I still remember your style notes. ${rows.length} piece${rows.length === 1 ? '' : 's'} in your closet.${weatherHint}`,
+              },
+            ]);
+          }
+          return;
         }
+
+        setContext(weatherBase);
+        contextRef.current = weatherBase;
         setWardrobe(rows);
-        const weatherHint = live
-          ? live.source === 'live'
-            ? ` Using live weather${live.label ? ` near ${live.label}` : ''}.`
-            : ' Using today’s cool / rain default until live weather is available.'
-          : '';
+        const created = await createMuseThread(user.id, {
+          title: 'Muse chat',
+          context: weatherBase,
+        });
+        if (cancelled) return;
+        setThreadId(created.id);
+        threadIdRef.current = created.id;
+        const placeName = live?.source === 'live' ? live.label : location;
+        const weatherHint = !location
+          ? ' Allow location (or set your city in profile) so I can use live weather.'
+          : live?.source === 'live'
+            ? ` Live weather near ${placeName}${autoSource && autoSource !== 'profile' ? ' (detected automatically)' : ''}.`
+            : live?.source === 'unavailable'
+              ? ` ${live.reason}`
+              : '';
         setMessages([
           {
-            id: nextMessageId.current++,
+            id: 1,
             from: 'muse',
             text:
               rows.length === 0
                 ? 'Your closet is empty. Add a few pieces, then I will style you from what you own.'
-                : `I found ${rows.length} piece${rows.length === 1 ? '' : 's'} in your closet — pulling a first outfit now.${weatherHint}`,
+                : `I found ${rows.length} piece${rows.length === 1 ? '' : 's'} in your closet — ask me anything.${weatherHint}`,
           },
         ]);
       } catch (error) {
@@ -239,49 +486,108 @@ export default function MuseChatScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.location, profile?.weather_aware]);
+  }, [user?.id, profile?.location, profile?.weather_aware, setProfile]);
 
   useEffect(() => {
-    if (loadingCloset || autoStarted.current || !user?.id || wardrobe.length === 0) {
+    if (loadingCloset || autoStarted.current || !user?.id) {
       return;
     }
     autoStarted.current = true;
-    void askMuse(
-      `Suggest an outfit for ${DEFAULT_CHAT_CONTEXT.occasionLabel.toLowerCase()} today`,
-      { silentUser: true, wardrobeOverride: wardrobe },
-    );
-  }, [askMuse, loadingCloset, user?.id, wardrobe]);
+    append([
+      {
+        id: nextMessageId.current++,
+        from: 'muse',
+        text:
+          wardrobe.length === 0
+            ? 'Add a few closet pieces, then ask me anything about outfits, weather, trips, or shopping for your wardrobe.'
+            : 'Hi — I am Muse, your Closette stylist. I remember your preferences across chats. Ask about outfits, weather, travel, or shopping.',
+      },
+    ]);
+  }, [append, loadingCloset, user?.id, wardrobe.length]);
 
   const sendMessage = (raw = draft) => {
     void askMuse(raw);
   };
 
+  const openHistory = () => {
+    if (!user?.id) {
+      Alert.alert('Sign in', 'Sign in to see your Muse chat history.');
+      return;
+    }
+    void (async () => {
+      try {
+        const rows = await listMuseThreads(user.id);
+        setThreads(rows);
+        setHistoryOpen(true);
+      } catch (error) {
+        Alert.alert('History', authErrorMessage(error));
+      }
+    })();
+  };
+
+  const openThread = async (thread: MuseChatThread) => {
+    try {
+      const stored = await loadMuseMessages(thread.id);
+      setThreadId(thread.id);
+      threadIdRef.current = thread.id;
+      const nextContext = {
+        ...DEFAULT_CHAT_CONTEXT,
+        ...(thread.context as Partial<ChatContext>),
+      };
+      setContext(nextContext);
+      contextRef.current = nextContext;
+      nextMessageId.current = stored.length + 2;
+      setMessages(
+        stored.length
+          ? stored.map((row, index) => ({
+              id: row.id || index + 1,
+              from: row.role === 'user' ? ('user' as const) : ('muse' as const),
+              text: row.content,
+              outfit: row.payload?.outfit,
+              product: row.payload?.product,
+            }))
+          : [
+              {
+                id: 1,
+                from: 'muse' as const,
+                text: 'This chat is empty — ask me for an outfit anytime.',
+              },
+            ],
+      );
+      autoStarted.current = true;
+      setHistoryOpen(false);
+    } catch (error) {
+      Alert.alert('History', authErrorMessage(error));
+    }
+  };
+
   const resetChat = () => {
-    Alert.alert('Start a new chat?', 'This will clear the current conversation.', [
+    Alert.alert('Start a new chat?', 'Your past chats stay in History. Memory about you is kept.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'New chat',
-        style: 'destructive',
         onPress: () => {
-          nextMessageId.current = 2;
-          setContext(DEFAULT_CHAT_CONTEXT);
-          setDraft('');
-          setMessages([
-            {
-              id: 1,
-              from: 'muse',
-              text: 'Fresh start — suggesting another look from your closet.',
-            },
-          ]);
-          if (wardrobe.length > 0 && user?.id) {
+          void (async () => {
+            if (!user?.id) return;
+            const created = await createMuseThread(user.id, {
+              title: 'Muse chat',
+              context: contextRef.current,
+            });
+            setThreadId(created.id);
+            threadIdRef.current = created.id;
+            nextMessageId.current = 2;
+            setDraft('');
+            setMessages([
+              {
+                id: 1,
+                from: 'muse',
+                text: 'Fresh chat — I still remember your style. What are we dressing for?',
+              },
+            ]);
             autoStarted.current = true;
-            void askMuse(
-              `Suggest an outfit for ${DEFAULT_CHAT_CONTEXT.occasionLabel.toLowerCase()} today`,
-              { silentUser: true },
-            );
-          } else {
-            autoStarted.current = false;
-          }
+            const rows = await listMuseThreads(user.id).catch(() => []);
+            setThreads(rows);
+          })().catch((error) => Alert.alert('Chat', authErrorMessage(error)));
         },
       },
     ]);
@@ -327,18 +633,51 @@ export default function MuseChatScreen() {
     ]);
   };
 
+  const applyPlaceWeather = (place: UserPlace) => {
+    setActivePlaceState(place);
+    setPlacesManagerOpen(false);
+    const coords =
+      place.latitude != null && place.longitude != null
+        ? {
+            latitude: place.latitude,
+            longitude: place.longitude,
+            label: place.label,
+          }
+        : null;
+    void resolveLiveWeather(place.query_name || place.label, coords).then(
+      (live) => {
+        if (live.source !== 'live' || !live.weather) {
+          Alert.alert(
+            'Weather',
+            live.source === 'unavailable'
+              ? live.reason
+              : 'Live weather unavailable.',
+          );
+          return;
+        }
+        const when = place.for_date
+          ? ` for ${placeChipLabel(place)}`
+          : ` at ${placeChipLabel(place)}`;
+        applyContextAndRefresh(
+          {
+            weather: live.weather,
+            location: placeChipLabel(place),
+            locationQuery: place.query_name || place.label,
+            latitude: place.latitude ?? undefined,
+            longitude: place.longitude ?? undefined,
+          },
+          `Dress me for the weather${when}`,
+        );
+      },
+    );
+  };
+
   const pickWeather = () => {
-    Alert.alert('Weather', 'Pick a weather context for Muse.', [
-      ...WEATHER_PRESETS.map((entry) => ({
-        text: entry.label,
-        onPress: () =>
-          applyContextAndRefresh(
-            { weather: entry.weather },
-            `Suggest an outfit for ${entry.label}`,
-          ),
-      })),
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    if (!user?.id) {
+      Alert.alert('Sign in', 'Sign in to manage your places.');
+      return;
+    }
+    setPlacesManagerOpen(true);
   };
 
   const tryOutfit = (payload: ChatOutfitPayload) => {
@@ -438,8 +777,27 @@ export default function MuseChatScreen() {
           </View>
           <View style={styles.heading}>
             <Text style={styles.title}>Muse</Text>
-            <Text style={styles.subtitle}>Closet + marketplace</Text>
+            <Text style={styles.subtitle}>
+              {memory.facts.length
+                ? `Remembers ${memory.facts.length} note${memory.facts.length === 1 ? '' : 's'}`
+                : 'Closet + marketplace'}
+            </Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Chat history"
+            onPress={openHistory}
+            style={styles.roundButton}>
+            <SymbolView
+              name={{
+                ios: 'clock.arrow.circlepath',
+                android: 'history',
+                web: 'history',
+              }}
+              tintColor={Colors.light.primary}
+              size={20}
+            />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Start a new conversation"
@@ -461,7 +819,9 @@ export default function MuseChatScreen() {
             <Text style={styles.contextText}>{context.scheduleLabel}</Text>
           </Pressable>
           <Pressable style={styles.contextLight} onPress={pickWeather}>
-            <Text style={styles.contextText}>{weatherLabel(context.weather)}</Text>
+            <Text style={styles.contextText}>
+              {weatherLabel(context.weather, context.location)}
+            </Text>
           </Pressable>
         </View>
 
@@ -695,6 +1055,112 @@ export default function MuseChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {user?.id ? (
+        <PlacesManagerModal
+          visible={placesManagerOpen}
+          userId={user.id}
+          onClose={() => setPlacesManagerOpen(false)}
+          onActivePlace={applyPlaceWeather}
+        />
+      ) : null}
+
+      <Modal
+        visible={historyOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setHistoryOpen(false)}>
+        <View style={styles.historyBackdrop}>
+          <View style={styles.historySheet}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Chat history</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setHistoryOpen(false)}
+                style={styles.roundButton}>
+                <SymbolView
+                  name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                  tintColor={Colors.light.primary}
+                  size={18}
+                />
+              </Pressable>
+            </View>
+            {memory.summary || memory.facts.length ? (
+              <View style={styles.memoryCard}>
+                <Text style={styles.memoryLabel}>What Muse remembers</Text>
+                {memory.summary ? (
+                  <Text style={styles.memorySummary}>{memory.summary}</Text>
+                ) : null}
+                {memory.facts.slice(-6).map((fact) => (
+                  <Text key={fact} style={styles.memoryFact}>
+                    • {fact}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            <ScrollView style={styles.historyList}>
+              {threads.length === 0 ? (
+                <Text style={styles.historyEmpty}>No saved chats yet.</Text>
+              ) : (
+                threads.map((thread) => (
+                  <View key={thread.id} style={styles.historyRow}>
+                    <Pressable
+                      style={styles.historyMain}
+                      onPress={() => void openThread(thread)}>
+                      <Text style={styles.historyRowTitle} numberOfLines={1}>
+                        {thread.title || 'Muse chat'}
+                      </Text>
+                      <Text style={styles.historyRowMeta}>
+                        {new Date(thread.updated_at).toLocaleString()}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete chat"
+                      onPress={() => {
+                        Alert.alert('Delete chat?', 'This removes the conversation only.', [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: () => {
+                              void deleteMuseThread(thread.id)
+                                .then(async () => {
+                                  if (!user?.id) return;
+                                  const rows = await listMuseThreads(user.id);
+                                  setThreads(rows);
+                                  if (threadId !== thread.id) return;
+                                  const created = await createMuseThread(user.id, {
+                                    title: 'Muse chat',
+                                    context: contextRef.current,
+                                  });
+                                  setThreadId(created.id);
+                                  threadIdRef.current = created.id;
+                                  setMessages([
+                                    {
+                                      id: 1,
+                                      from: 'muse',
+                                      text: 'That chat was deleted. Ask me for a new look anytime.',
+                                    },
+                                  ]);
+                                })
+                                .catch((error) =>
+                                  Alert.alert('History', authErrorMessage(error)),
+                                );
+                            },
+                          },
+                        ]);
+                      }}
+                      style={styles.historyDelete}>
+                      <Text style={styles.historyDeleteText}>Delete</Text>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1046,4 +1512,86 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
   },
   sendDisabled: { opacity: 0.45 },
+  historyBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(18, 38, 63, 0.35)',
+  },
+  historySheet: {
+    maxHeight: '78%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: Colors.light.canvas,
+    paddingBottom: 28,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: PageGutter,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  historyTitle: {
+    fontFamily: Typeface.display,
+    fontSize: 22,
+    color: Colors.light.primary,
+  },
+  memoryCard: {
+    marginHorizontal: PageGutter,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: Colors.light.backgroundElement,
+  },
+  memoryLabel: {
+    fontFamily: Typeface.bodyStrong,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 6,
+  },
+  memorySummary: {
+    fontFamily: Typeface.body,
+    fontSize: 14,
+    color: Colors.light.primary,
+    marginBottom: 6,
+  },
+  memoryFact: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    color: Colors.light.primary,
+    marginTop: 2,
+  },
+  historyList: { paddingHorizontal: PageGutter },
+  historyEmpty: {
+    fontFamily: Typeface.body,
+    color: Colors.light.textSecondary,
+    paddingVertical: 24,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.outlineBlue,
+  },
+  historyMain: { flex: 1 },
+  historyRowTitle: {
+    fontFamily: Typeface.bodyStrong,
+    fontSize: 15,
+    color: Colors.light.primary,
+  },
+  historyRowMeta: {
+    fontFamily: Typeface.body,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  historyDelete: { paddingHorizontal: 8, paddingVertical: 6 },
+  historyDeleteText: {
+    fontFamily: Typeface.body,
+    fontSize: 13,
+    color: Colors.light.primary,
+  },
 });
